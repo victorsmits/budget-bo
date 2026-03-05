@@ -24,6 +24,66 @@ async def get_session() -> AsyncSession:
         yield session
 
 
+@router.post("/test-login", response_model=dict[str, Any])
+async def test_login(
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """
+    Development-only: Create a test session without Google OAuth.
+    
+    This endpoint is only available in development mode for testing purposes.
+    """
+    if settings.is_production:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test login not available in production",
+        )
+
+    from uuid import uuid4
+    from datetime import datetime
+
+    # Find or create test user
+    result = await session.execute(
+        select(User).where(User.email == "test@example.com")
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            id=uuid4(),
+            email="test@example.com",
+            oauth_id="test_oauth_dev",
+            display_name="Test User",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    # Create session cookie
+    session_token = encryption.encrypt(str(user.id))
+
+    response.set_cookie(
+        key="session",
+        value=session_token,
+        httponly=True,
+        secure=False,  # Allow HTTP in development
+        samesite="lax",
+        max_age=86400 * 7,
+    )
+
+    return {
+        "message": "Test login successful",
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "display_name": user.display_name,
+        },
+        "note": "This endpoint is for development only",
+    }
+
+
 @router.get("/login")
 async def login() -> RedirectResponse:
     """Redirect to Google OAuth login."""
@@ -33,8 +93,8 @@ async def login() -> RedirectResponse:
             detail="Google OAuth not configured",
         )
 
-    # Build Google OAuth URL
-    redirect_uri = f"{settings.frontend_url}/api/auth/callback"
+    # Build Google OAuth URL - use backend URL for callback
+    redirect_uri = "http://localhost:8000/auth/callback"
     scope = "openid email profile"
 
     google_auth_url = (
@@ -154,7 +214,7 @@ async def _exchange_code_for_token(code: str) -> dict[str, Any] | None:
     if not settings.google_client_secret:
         return None
 
-    redirect_uri = f"{settings.frontend_url}/api/auth/callback"
+    redirect_uri = "http://localhost:8000/auth/callback"
 
     token_url = "https://oauth2.googleapis.com/token"
     data = {
