@@ -220,14 +220,22 @@ Voir le guide détaillé : [`docs/GUIDE_GOOGLE_OAUTH.md`](docs/GUIDE_GOOGLE_OAUT
 ### Mode développement (hot-reload)
 
 ```bash
+# 1. Lancer les services backend (API, DB, Redis, IA)
 docker compose up -d
 
-# Voir les logs
-docker compose logs -f backend
+# 2. Dans un autre terminal, lancer le frontend en mode natif
+cd frontend
+npm install
+npm run dev
 
-# Arrêter
-docker compose down
+# L'application est disponible sur http://localhost:3000
 ```
+
+**Pourquoi le frontend en mode natif ?**
+- Hot reload instantané (pas de volume Docker lent)
+- Meilleure DX (logs colorés, erreur React détaillées)
+- IDE/debugger fonctionne parfaitement
+- Installation dépendances plus rapide
 
 ### Mode production
 
@@ -244,12 +252,15 @@ docker compose up -d
 
 | Service | URL | Description |
 |---------|-----|-------------|
+| **Frontend** | http://localhost:3000 | Interface Next.js (npm run dev) |
 | **API** | http://localhost:8000 | Backend FastAPI |
 | **Docs** | http://localhost:8000/docs | Swagger UI |
 | **ReDoc** | http://localhost:8000/redoc | Documentation alternative |
 | **Flower** | http://localhost:5555 | Monitoring Celery |
 | **PostgreSQL** | localhost:5432 | Database |
 | **Redis** | localhost:6379 | Cache |
+
+**Note** : Le frontend doit être lancé séparément avec `npm run dev` dans le dossier `frontend/`.
 
 ---
 

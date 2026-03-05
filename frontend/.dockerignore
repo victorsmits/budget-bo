@@ -1,0 +1,12 @@
+node_modules
+.next
+coverage
+.env.local
+.env
+*.log
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+*~

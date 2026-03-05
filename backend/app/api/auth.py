@@ -68,8 +68,8 @@ async def test_login(
         key="session",
         value=session_token,
         httponly=True,
-        secure=False,  # Allow HTTP in development
-        samesite="lax",
+        secure=False,
+        samesite="none" if not settings.is_production else "lax",
         max_age=86400 * 7,
     )
 
@@ -155,7 +155,7 @@ async def auth_callback(
         value=session_token,
         httponly=True,
         secure=settings.is_production,
-        samesite="lax",
+        samesite="none" if not settings.is_production else "lax",
         max_age=86400 * 7,  # 7 days
     )
 
@@ -165,7 +165,11 @@ async def auth_callback(
 @router.post("/logout")
 async def logout(response: Response) -> dict[str, str]:
     """Logout and clear session cookie."""
-    response.delete_cookie(key="session")
+    response.delete_cookie(
+        key="session",
+        samesite="none" if not settings.is_production else "lax",
+        secure=settings.is_production,
+    )
     return {"message": "Logged out successfully"}
 
 
