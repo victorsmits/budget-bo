@@ -255,7 +255,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         <div className="font-medium text-red-600">
-                          -{item.average_amount.toFixed(2)} €
+                          -{Number(item.average_amount).toFixed(2)} €
                         </div>
                       </div>
                     )
@@ -293,7 +293,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className={cn("font-medium", tx.is_expense ? "text-red-600" : "text-green-600")}>
-                      {tx.is_expense ? "-" : "+"}{tx.amount.toFixed(2)} €
+                      {tx.is_expense ? "-" : "+"}{Number(tx.amount).toFixed(2)} €
                     </div>
                   </div>
                 ))}

@@ -1,5 +1,6 @@
 """Bank credentials API endpoints."""
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from app.models.models import (
     BankCredential,
     BankCredentialCreate,
     BankCredentialPublic,
+    BankCredentialUpdate,
     User,
 )
 
@@ -61,6 +63,7 @@ async def create_credential(
         user_id=user.id,
         bank_name=credential.bank_name,
         bank_label=credential.bank_label,
+        bank_website=credential.bank_website,
         encrypted_login=encrypted_login,
         encrypted_password=encrypted_password,
         is_active=True,
@@ -123,14 +126,56 @@ async def delete_credential(
     await session.commit()
 
 
+@router.put("/{credential_id}", response_model=BankCredentialPublic)
+async def update_credential(
+    credential_id: UUID,
+    data: BankCredentialUpdate,
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> BankCredentialPublic:
+    """Update a credential."""
+    result = await session.execute(
+        select(BankCredential).where(
+            BankCredential.id == credential_id,
+            BankCredential.user_id == user.id,
+        )
+    )
+    credential = result.scalar_one_or_none()
+
+    if not credential:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Credential not found",
+        )
+
+    # Update fields
+    credential.bank_name = data.bank_name
+    credential.bank_label = data.bank_label
+    credential.bank_website = data.bank_website
+    
+    # Only update password if provided
+    if data.login:
+        credential.encrypted_login = encryption.encrypt(data.login)
+    if data.password:
+        credential.encrypted_password = encryption.encrypt(data.password)
+    
+    credential.sync_status = "pending"
+    credential.updated_at = datetime.utcnow()
+    
+    await session.commit()
+    await session.refresh(credential)
+
+    return BankCredentialPublic.model_validate(credential)
+
+
 @router.post("/{credential_id}/sync", response_model=dict[str, Any])
 async def trigger_sync(
     credential_id: UUID,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Trigger manual sync for a credential."""
-    from worker.tasks.sync_tasks import sync_user_transactions
+    """Trigger bank sync via RQ worker."""
+    from worker.rq_queue import enqueue_sync_transactions, enqueue_enrich_transactions
 
     result = await session.execute(
         select(BankCredential).where(
@@ -147,15 +192,22 @@ async def trigger_sync(
             detail="Credential not found or inactive",
         )
 
-    # Queue sync task
-    task = sync_user_transactions.delay(
+    # Queue sync job via RQ
+    job = enqueue_sync_transactions(
         str(user.id),
         str(credential_id),
-        days_back=7,
+        days_back=30,
+    )
+
+    # Also queue enrichment job
+    enrich_job = enqueue_enrich_transactions(
+        str(user.id),
+        days_back=30,
     )
 
     return {
-        "message": "Sync queued",
+        "message": "Sync and enrichment queued",
         "credential_id": str(credential_id),
-        "task_id": task.id,
+        "sync_job_id": job.id,
+        "enrich_job_id": enrich_job.id,
     }

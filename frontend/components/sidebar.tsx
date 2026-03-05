@@ -12,6 +12,7 @@ import {
   LogOut,
   Wallet,
   Loader2,
+  Building2,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth, logout } from "@/lib/auth"
@@ -37,6 +38,11 @@ const navItems: NavItem[] = [
     title: "Récurrentes",
     href: "/recurring",
     icon: Repeat,
+  },
+  {
+    title: "Comptes",
+    href: "/credentials",
+    icon: Building2,
   },
 ]
 

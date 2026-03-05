@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libssl-dev \
     curl \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
@@ -26,6 +27,10 @@ RUN poetry config virtualenvs.in-project true \
 
 # Install dependencies (without root package to avoid README.md requirement)
 RUN poetry install --no-interaction --no-ansi --no-root
+
+# Initialize woob and install required modules
+RUN poetry run pip install prettytable && \
+    poetry run woob config modules cragr
 
 # Development stage
 FROM base as development

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface FetchOptions extends RequestInit {
   requireAuth?: boolean
@@ -79,8 +79,10 @@ export const api = {
   // Credentials
   credentials: {
     list: () => apiClient("/credentials"),
-    create: (data: { bank_name: string; bank_label?: string; login: string; password: string }) =>
+    create: (data: { bank_name: string; bank_label?: string; bank_website?: string; login: string; password: string }) =>
       apiClient("/credentials", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: { bank_name?: string; bank_label?: string; bank_website?: string; login?: string; password?: string }) =>
+      apiClient(`/credentials/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     sync: (id: string) => apiClient(`/credentials/${id}/sync`, { method: "POST" }),
   },
 }

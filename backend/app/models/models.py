@@ -98,8 +98,9 @@ class UserCreate(UserBase):
 class BankCredentialBase(SQLModel):
     """Base model for BankCredential."""
 
-    bank_name: str = Field(description="Bank identifier (e.g., 'bp', 'lcl')")
+    bank_name: str = Field(description="Bank identifier (e.g., 'bp', 'lcl', 'cragr')")
     bank_label: Optional[str] = Field(default=None, description="Human-readable bank name")
+    bank_website: Optional[str] = Field(default=None, description="Bank website/region for cragr (e.g., 'ca-nord', 'ca-paris')")
     is_active: bool = Field(default=True)
 
 
@@ -134,6 +135,7 @@ class BankCredentialPublic(BankCredentialBase):
     updated_at: datetime
     last_sync_at: Optional[datetime]
     sync_status: str
+    sync_error_message: Optional[str]
 
 
 class BankCredentialCreate(SQLModel):
@@ -141,8 +143,19 @@ class BankCredentialCreate(SQLModel):
 
     bank_name: str
     bank_label: Optional[str] = None
+    bank_website: Optional[str] = None  # For cragr: ca-nord, ca-paris, etc.
     login: str
     password: str
+
+
+class BankCredentialUpdate(SQLModel):
+    """Bank credential update model - login/password optional."""
+
+    bank_name: str
+    bank_label: Optional[str] = None
+    bank_website: Optional[str] = None
+    login: Optional[str] = None  # Only update if provided
+    password: Optional[str] = None  # Only update if provided
 
 
 # endregion

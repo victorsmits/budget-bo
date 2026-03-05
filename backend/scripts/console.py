@@ -1,108 +1,101 @@
 #!/usr/bin/env python
-"""
-Interactive debug console for Budget Bo backend.
+"""Interactive console for Budget Bo backend.
 
 Usage:
     docker compose exec backend python -m scripts.console
-
-This launches an IPython session with pre-loaded models and database session.
 """
 
 import asyncio
-from decimal import Decimal
-from uuid import UUID
+import sys
 
-import ipdb
-from IPython import embed
-from sqlalchemy import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+sys.path.insert(0, "/app")
+
+# Import after path setup
+from sqlalchemy import select, func
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
-from app.core.security import EncryptionService, get_encryption_service
+from app.core.security import get_encryption_service
 from app.models.models import (
-    BankCredential,
-    BankCredentialCreate,
-    RecurringExpense,
-    Transaction,
-    TransactionCategory,
     User,
-    UserCreate,
+    BankCredential,
+    Transaction,
+    RecurringExpense,
+    TransactionCategory,
 )
+
+# Import worker tasks
+from worker.tasks.sync_tasks import sync_user_transactions, _async_sync_user_transactions
 
 settings = get_settings()
 encryption = get_encryption_service()
 
 
-async def init_console() -> dict:
-    """Initialize console with database session and common objects."""
-    session: AsyncSession = AsyncSessionLocal()
+async def _query(q):
+    """Execute a query and return results."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(q)
+        return result.scalars().all()
 
-    # Pre-fetch some data for convenience
-    users_result = await session.execute(select(User).limit(5))
-    users = users_result.scalars().all()
 
-    transactions_result = await session.execute(select(Transaction).limit(5))
-    transactions = transactions_result.scalars().all()
+async def _count(model):
+    """Count records in a table."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(func.count()).select_from(model))
+        return result.scalar()
 
-    namespace = {
-        # Database
-        "session": session,
-        "AsyncSessionLocal": AsyncSessionLocal,
-        "select": select,
-        # Models
+
+banner = """
+╔═══════════════════════════════════════════════════════════════╗
+║           Budget Bo - Interactive Console                      ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Available:                                                    ║
+║   - User, BankCredential, Transaction, RecurringExpense       ║
+║   - TransactionCategory                                       ║
+║   - settings, encryption                                      ║
+║   - _query(), _count(), AsyncSessionLocal                     ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Examples:                                                     ║
+║   >>> import asyncio                                          ║
+║   >>> asyncio.run(_count(User))                               ║
+║   >>> asyncio.run(_query(select(Transaction)))                ║
+║   >>> session = asyncio.run(AsyncSessionLocal().__aenter__()) ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
+
+
+# Import IPython
+try:
+    from IPython import start_ipython
+    
+    # Start IPython with our namespace
+    user_ns = {
         "User": User,
-        "UserCreate": UserCreate,
         "BankCredential": BankCredential,
-        "BankCredentialCreate": BankCredentialCreate,
         "Transaction": Transaction,
-        "TransactionCategory": TransactionCategory,
         "RecurringExpense": RecurringExpense,
-        # Utilities
+        "TransactionCategory": TransactionCategory,
+        "select": select,
+        "func": func,
         "settings": settings,
         "encryption": encryption,
-        "EncryptionService": EncryptionService,
-        "UUID": UUID,
-        "Decimal": Decimal,
-        # Pre-loaded data
-        "users": users,
-        "transactions": transactions,
+        "_query": _query,
+        "_count": _count,
+        "AsyncSessionLocal": AsyncSessionLocal,
+        "asyncio": __import__("asyncio"),
+        "sync_user_transactions": sync_user_transactions,
+        "_async_sync_user_transactions": _async_sync_user_transactions,
     }
-
-    return namespace
-
-
-def run_console() -> None:
-    """Run the interactive console."""
-    banner = """
-╔═══════════════════════════════════════════════════════════════╗
-║           Budget Bo - Debug Console (Rails-style)            ║
-╠═══════════════════════════════════════════════════════════════╣
-║ Available objects:                                            ║
-║   session          - Async database session                   ║
-║   User             - User model                               ║
-║   BankCredential   - Bank credential model                  ║
-║   Transaction      - Transaction model                      ║
-║   RecurringExpense - Recurring expense model                ║
-║   encryption       - EncryptionService instance             ║
-║   settings         - Application settings                   ║
-║                                                               ║
-║ Example usage:                                                ║
-║   await session.execute(select(User))                       ║
-║   encryption.decrypt(credential.encrypted_login)            ║
-╚═══════════════════════════════════════════════════════════════╝
-    """
-
-    # Run async init
-    namespace = asyncio.run(init_console())
-
-    # Start IPython
-    embed(
-        header=banner,
-        colors="neutral",
-        using=namespace,
-    )
-
-
-if __name__ == "__main__":
-    run_console()
+    
+    print(banner)
+    start_ipython(argv=[], user_ns=user_ns)
+    
+except ImportError:
+    print("IPython not available")
+    import code
+    code.interact(local={
+        "User": User,
+        "BankCredential": BankCredential,
+        "Transaction": Transaction,
+        "select": select,
+    })
