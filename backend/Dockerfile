@@ -29,8 +29,8 @@ RUN poetry config virtualenvs.in-project true \
 RUN poetry install --no-interaction --no-ansi --no-root
 
 # Initialize woob and install required modules
-RUN poetry run pip install prettytable && \
-    poetry run woob config modules cragr
+COPY ./scripts/setup_woob.py /app/scripts/setup_woob.py
+RUN poetry run python /app/scripts/setup_woob.py
 
 # Development stage
 FROM base as development
