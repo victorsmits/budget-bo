@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "./api"
 
 interface User {
   id: string
@@ -16,44 +17,25 @@ interface AuthState {
 }
 
 export function useAuth(): AuthState {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    isLoading: true,
-    isAuthenticated: false,
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => api.auth.me(),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   })
 
-  useEffect(() => {
-    // Check auth status from backend
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => {
-        if (res.ok) {
-          return res.json()
-        }
-        throw new Error("Not authenticated")
-      })
-      .then((user) => {
-        setState({
-          user,
-          isLoading: false,
-          isAuthenticated: true,
-        })
-      })
-      .catch(() => {
-        setState({
-          user: null,
-          isLoading: false,
-          isAuthenticated: false,
-        })
-      })
-  }, [])
-
-  return state
+  return {
+    user: user ?? null,
+    isLoading,
+    isAuthenticated: !error && !!user,
+  }
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", {
-    method: "POST",
-    credentials: "include",
-  })
+  await api.auth.logout()
   window.location.href = "/login"
 }
+
+// Export du hook de déconnexion pour les composants
+export { useLogout } from "@/hooks/api/useAuth"

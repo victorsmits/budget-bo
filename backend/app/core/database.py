@@ -1,5 +1,6 @@
 """Database connection and session management."""
 
+import os
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -10,14 +11,24 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# Create async engine
+# Pool configuration
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+
+# Create async engine with connection pool (for FastAPI - single event loop)
 engine = create_async_engine(
     settings.database_url,
     echo=settings.database_echo,
     future=True,
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
+    pool_timeout=POOL_TIMEOUT,
+    pool_recycle=3600,
+    pool_pre_ping=True,
 )
 
-# Create async session factory
+# Session factory for FastAPI (single event loop)
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -25,6 +36,34 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False,
 )
+
+
+def create_worker_session() -> AsyncSession:
+    """Create a fresh engine + session for Celery worker tasks.
+
+    Each call to asyncio.run() in a Celery task creates a new event loop.
+    The module-level engine holds connections tied to a previous loop,
+    causing 'Future attached to a different loop' errors.
+    This function creates a disposable engine per task to avoid that.
+    """
+    worker_engine = create_async_engine(
+        settings.database_url,
+        echo=settings.database_echo,
+        future=True,
+        pool_size=2,
+        max_overflow=5,
+        pool_timeout=POOL_TIMEOUT,
+        pool_recycle=300,
+        pool_pre_ping=True,
+    )
+    factory = sessionmaker(
+        bind=worker_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+    return factory()
 
 
 async def init_db() -> None:

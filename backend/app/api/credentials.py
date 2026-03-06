@@ -194,7 +194,10 @@ async def trigger_sync(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Trigger bank sync via Celery worker."""
-    from worker.tasks import sync_user_transactions, enrich_new_transactions
+    from worker.jobs import (
+        sync_credential_transactions,
+        enrich_user_transactions,
+    )
 
     result = await session.execute(
         select(BankCredential).where(
@@ -212,14 +215,13 @@ async def trigger_sync(
         )
 
     # Queue sync job via Celery
-    sync_job = sync_user_transactions.delay(
-        str(user.id),
+    sync_job = sync_credential_transactions.delay(
         str(credential_id),
         days_back=30,
     )
 
-    # Also queue enrichment job
-    enrich_job = enrich_new_transactions.delay(
+    # Also queue enrichment job for this user's transactions
+    enrich_job = enrich_user_transactions.delay(
         str(user.id),
         days_back=30,
     )

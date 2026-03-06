@@ -56,20 +56,24 @@ class OllamaService:
             - category: Suggested category
             - confidence: 0.0 to 1.0
         """
-        prompt = f"""You are a transaction classifier. Analyze this bank transaction label and extract structured information.
+        prompt = f"""I need you to clean up this bank transaction name and tell me what it is.
 
-Raw label: "{raw_label}"
+Original name: "{raw_label}"
 
-Instructions:
-1. Clean common bank prefixes like "PRLVM SEPA", "VIREMENT", "CARTE", "CB", etc.
-2. Extract the actual merchant name
-3. Assign the most appropriate category
-4. Be concise and accurate
+Your job:
+1. Remove all the weird numbers, references and bank codes
+2. Keep only the actual store or company name
+3. Tell me what type of expense it is
 
-Available categories: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
+Examples:
+- "CARTE 12/10 Netflix.com 9.99" becomes "Netflix" (entertainment)
+- "EUROP ASSISTANCE ITALIA SPA/REF00000000000000000000000000151219/3206903896" becomes "Europ Assistance" (insurance)
+- "PRLVM SEPA EDF 123456789" becomes "EDF" (utilities)
 
-Respond ONLY with a JSON object (no extra text, no explanation):
-{{"cleaned_label": "Merchant Name", "merchant_name": "merchant", "category": "category_name", "confidence": 0.95}}"""
+Categories you can use: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
+
+Reply with ONLY this format:
+{{"cleaned_label": "Clean Name", "merchant_name": "merchant", "category": "category", "confidence": 0.95}}"""
 
         try:
             response = await self._generate(prompt, temperature=0.1)
@@ -124,44 +128,63 @@ Respond ONLY with a JSON object (no extra text, no explanation):
                                       "insurance", "education", "travel", "other"]:
                         category = "other"
                     
+                    # Nettoyer le cleaned_label
+                    cleaned_label = result.get("cleaned_label", raw_label).strip()
+                    
+                    # Si le cleaned_label est identique au raw_label, essayer un nettoyage basique
+                    if cleaned_label == raw_label:
+                        # Nettoyage basique par regex
+                        import re
+                        # Enlever les références après /
+                        cleaned_label = re.sub(r'/.*$', '', cleaned_label)
+                        # Enlever les références REF
+                        cleaned_label = re.sub(r'REF[\dA-Z]*', '', cleaned_label)
+                        # Enlever les numéros de téléphone longs
+                        cleaned_label = re.sub(r'\b\d{10,}\b', '', cleaned_label)
+                        # Nettoyer les espaces multiples
+                        cleaned_label = re.sub(r'\s+', ' ', cleaned_label).strip()
+                        # Si c'est toujours vide, utiliser une partie du raw_label
+                        if not cleaned_label:
+                            # Prendre les 30 premiers caractères
+                            cleaned_label = raw_label[:30].strip()
+                    
                     return {
-                        "cleaned_label": result.get("cleaned_label", raw_label).strip(),
-                        "merchant_name": result.get("merchant_name", "").strip(),
+                        "cleaned_label": cleaned_label,
+                        "merchant_name": result.get("merchant_name", cleaned_label),
                         "category": category,
-                        "confidence": min(max(float(result.get("confidence", 0.5)), 0.0), 1.0),
+                        "confidence": float(result.get("confidence", 0.5))
                     }
+            
+            # Si tout échoue, retourner une réponse par défaut
+            return {
+                "cleaned_label": raw_label[:30].strip(),
+                "merchant_name": raw_label[:30].strip(),
+                "category": "other",
+                "confidence": 0.1
+            }
                 
-                # Sinon, essayer de parser le JSON directement (peut échouer)
-                try:
-                    json_str = json_str.replace('\n', '').replace('\r', '')
-                    json_str = json_str.replace("'", '"')
-                    result = json.loads(json_str)
-                    
-                    category = result.get("category", "other").lower().strip()
-                    if category not in ["housing", "transportation", "food", "utilities", "healthcare", 
-                                      "entertainment", "shopping", "subscriptions", "income", 
-                                      "insurance", "education", "travel", "other"]:
-                        category = "other"
-                    
-                    return {
-                        "cleaned_label": result.get("cleaned_label", raw_label).strip(),
-                        "merchant_name": result.get("merchant_name", "").strip(),
-                        "category": category,
-                        "confidence": min(max(float(result.get("confidence", 0.5)), 0.0), 1.0),
-                    }
-                except:
-                    pass
-                    
         except Exception as e:
             print(f"Error parsing AI response: {e}")
-            # Ne pas essayer d'afficher 'response' si elle n'est pas définie
-            pass
+            # En cas d'erreur, faire un nettoyage basique
+            import re
+            cleaned_label = raw_label
+            # Enlever les références après /
+            cleaned_label = re.sub(r'/.*$', '', cleaned_label)
+            # Enlever les références REF
+            cleaned_label = re.sub(r'REF[\dA-Z]*', '', cleaned_label)
+            # Enlever les numéros de téléphone longs
+            cleaned_label = re.sub(r'\b\d{10,}\b', '', cleaned_label)
+            # Nettoyer les espaces multiples
+            cleaned_label = re.sub(r'\s+', ' ', cleaned_label).strip()
+            
+            if not cleaned_label:
+                cleaned_label = raw_label[:30].strip()
 
         return {
-            "cleaned_label": raw_label,
-            "merchant_name": "",
+            "cleaned_label": cleaned_label,
+            "merchant_name": cleaned_label,
             "category": "other",
-            "confidence": 0.0,
+            "confidence": 0.1,
         }
 
     async def categorize_transaction(

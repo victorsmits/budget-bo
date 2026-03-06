@@ -241,16 +241,49 @@ async def enrich_transactions(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Manually trigger AI enrichment for unprocessed transactions."""
-    from worker.tasks import enrich_new_transactions
+    from worker.jobs import enrich_user_transactions
     
     # Queue enrichment job
-    job = enrich_new_transactions.delay(str(user.id), days_back)
+    job = enrich_user_transactions.delay(str(user.id), days_back)
     
     return {
         "message": "Enrichment job queued",
         "job_id": job.id,
         "days_back": days_back,
     }
+
+
+@router.post("/{transaction_id}/enrich", response_model=TransactionPublic)
+async def enrich_transaction(
+    transaction_id: UUID,
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> TransactionPublic:
+    """Enrich a single transaction with AI."""
+    from worker.jobs import enrich_single_transaction
+    
+    # Get transaction
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user.id,
+        )
+    )
+    transaction = result.scalar_one_or_none()
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found",
+        )
+    
+    # Queue enrichment job
+    enrich_single_transaction.delay(str(transaction.id))
+    
+    # For now, return the transaction as-is
+    # In a real implementation, you might want to return a job ID
+    # and poll for completion
+    return TransactionPublic.model_validate(transaction)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)

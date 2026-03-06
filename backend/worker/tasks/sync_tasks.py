@@ -11,7 +11,7 @@ from typing import Any
 sys.path.insert(0, "/app")
 
 from app.core.config import get_settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import create_worker_session
 from app.core.security import get_encryption_service
 from app.models.models import (
     BankCredential,
@@ -317,6 +317,79 @@ def enrich_new_transactions(
         raise
 
 
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
+def enrich_single_transaction(
+    self: Task,
+    transaction_id: str,
+) -> dict[str, Any]:
+    """
+    Enrich a single transaction using local AI (Ollama).
+    """
+    try:
+        return asyncio.run(_async_enrich_single_transaction(transaction_id))
+    except Exception as exc:
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        raise
+
+
+async def _async_enrich_single_transaction(
+    transaction_id: str,
+) -> dict[str, Any]:
+    """Async implementation of single transaction enrichment."""
+    from datetime import datetime
+    from app.services.ollama import OllamaService
+    from sqlalchemy import select
+
+    # Create OllamaService instance in this event loop
+    ollama = OllamaService()
+
+    # Use the existing session factory
+    async with AsyncSessionLocal() as session:
+        # Fetch the transaction
+        result = await session.execute(
+            select(Transaction).where(Transaction.id == transaction_id)
+        )
+        tx = result.scalar_one_or_none()
+
+        if not tx:
+            return {"error": "Transaction not found"}
+
+        try:
+            # Normalize label with AI
+            normalization = await ollama.normalize_label(tx.raw_label)
+
+            tx.cleaned_label = normalization["cleaned_label"]
+            tx.merchant_name = normalization["merchant_name"]
+            tx.ai_confidence = normalization["confidence"]
+
+            # Map category string to enum
+            category_str = normalization["category"].upper()
+            try:
+                tx.category = TransactionCategory[category_str]
+            except KeyError:
+                tx.category = TransactionCategory.OTHER
+
+            tx.enriched_at = datetime.utcnow()
+            await session.commit()
+
+            return {
+                "transaction_id": str(tx.id),
+                "success": True,
+                "cleaned_label": tx.cleaned_label,
+                "category": tx.category.value,
+            }
+
+        except Exception as e:
+            await session.rollback()
+            print(f"Error enriching transaction {tx.id}: {e}")
+            return {
+                "transaction_id": str(tx.id),
+                "success": False,
+                "error": str(e),
+            }
+
+
 async def _async_enrich_transactions(
     user_id: str,
     days_back: int,
@@ -325,10 +398,10 @@ async def _async_enrich_transactions(
     from datetime import datetime
     from datetime import timedelta as td
 
-    from app.services.ollama import get_ollama_service
+    from app.services.ollama import OllamaService
     from sqlalchemy import select
 
-    ollama = get_ollama_service()
+    ollama = OllamaService()
     enriched_count = 0
     error_count = 0
 

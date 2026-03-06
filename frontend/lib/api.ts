@@ -26,12 +26,7 @@ export async function apiClient(
   const response = await fetch(url, config)
 
   if (!response.ok) {
-    if (response.status === 401) {
-      // Redirect to login on auth error
-      if (typeof window !== "undefined") {
-        window.location.href = "/login"
-      }
-    }
+    // Ne pas rediriger automatiquement, laisser React Query gérer les erreurs
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
 
@@ -63,7 +58,9 @@ export const api = {
       const query = searchParams.toString()
       return apiClient(`/transactions${query ? `?${query}` : ""}`)
     },
+    getById: (id: string) => apiClient(`/transactions/${id}`),
     summary: () => apiClient("/transactions/summary"),
+    enrich: (id: string) => apiClient(`/transactions/${id}/enrich`, { method: "POST" }),
   },
 
   // Recurring

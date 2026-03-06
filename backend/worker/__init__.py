@@ -1,5 +1,25 @@
-"""Worker tasks package - Celery tasks for background jobs."""
+"""Worker tasks package - Background job processing with separate queues.
 
-from worker.tasks import sync_user_transactions, enrich_new_transactions, sync_all_users_transactions
+Jobs are organized by type:
+- sync_queue: Bank synchronization jobs (sync_transactions.py)
+- enrich_queue: AI enrichment jobs (enrich_transactions.py)
+- default: Batch orchestration jobs (batch_operations.py)
+"""
 
-__all__ = ["sync_user_transactions", "enrich_new_transactions", "sync_all_users_transactions"]
+from worker.jobs import (
+    enrich_all_transactions,
+    enrich_single_transaction,
+    enrich_user_transactions,
+    sync_all_credentials,
+    sync_credential_transactions,
+    trigger_enrichment_after_sync,
+)
+
+__all__ = [
+    "sync_credential_transactions",
+    "sync_all_credentials",
+    "enrich_single_transaction",
+    "enrich_user_transactions",
+    "enrich_all_transactions",
+    "trigger_enrichment_after_sync",
+]

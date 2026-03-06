@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import DashboardLayout from "./dashboard-layout"
 import {
   Card,
@@ -10,86 +9,72 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
 import {
   ArrowUpRight,
   ArrowDownRight,
   Wallet,
-  TrendingUp,
   Repeat,
   CreditCard,
   Loader2,
 } from "lucide-react"
-import { api } from "@/lib/api"
+import { useDashboardData } from "@/hooks/api"
 import { DashboardSkeleton } from "@/components/loading"
 import { ErrorCard } from "@/components/error"
+import { AuthErrorHandler } from "@/components/auth/auth-error-handler"
+import { TransactionCard } from "@/components/transactions/transaction-card"
+import { useMemo } from "react"
 
-interface Transaction {
-  id: string
-  cleaned_label: string | null
-  raw_label: string
-  amount: number
-  date: string
-  category: string
-  is_expense: boolean
-  is_recurring: boolean
-}
-
-interface RecurringExpense {
-  id: string
-  pattern_name: string
-  average_amount: number
-  next_expected_date: string | null
-}
-
-interface SummaryData {
-  period: { start: string; end: string }
-  total_expenses: number
-  total_income: number
-  net: number
-  by_category: { category: string; total: number; count: number }[]
-}
+// Types importés depuis @/types/api
+import type { Transaction, RecurringExpense, SummaryData } from "@/types/api"
 
 export default function DashboardPage() {
-  const [summary, setSummary] = useState<SummaryData | null>(null)
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
-  const [upcomingRecurring, setUpcomingRecurring] = useState<RecurringExpense[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchDashboardData = async () => {
-    setIsLoading(true)
-    setError(null)
-    
-    try {
-      const [summaryData, transactions, recurring] = await Promise.all([
-        api.transactions.summary(),
-        api.transactions.list({ limit: 5 }),
-        api.recurring.upcoming(30),
-      ])
-      
-      setSummary(summaryData)
-      setRecentTransactions(transactions)
-      setUpcomingRecurring(recurring)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors du chargement")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
+  const {
+    summary,
+    recentTransactions,
+    upcomingRecurring,
+    credentials,
+    isLoading,
+    error,
+    syncCredential,
+  } = useDashboardData()
 
   const handleSync = async () => {
-    try {
-      // TODO: Implement actual sync
-      console.log("Sync triggered")
-      await fetchDashboardData()
-    } catch (err) {
-      console.error("Sync failed", err)
+    if (credentials && credentials.length > 0) {
+      syncCredential.mutate(credentials[0].id)
     }
   }
+
+  const stats = useMemo(() => [
+    {
+      title: "Solde net",
+      value: summary?.net ? summary.net.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
+      change: "",
+      trend: (summary?.net ?? 0) >= 0 ? "up" : "down",
+      icon: Wallet,
+    },
+    {
+      title: "Dépenses ce mois",
+      value: summary?.total_expenses ? summary.total_expenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
+      change: "",
+      trend: "down",
+      icon: ArrowDownRight,
+    },
+    {
+      title: "Revenus ce mois",
+      value: summary?.total_income ? summary.total_income.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
+      change: "",
+      trend: "up",
+      icon: ArrowUpRight,
+    },
+    {
+      title: "Transactions",
+      value: recentTransactions?.length.toString() ?? "0",
+      change: "",
+      trend: "neutral",
+      icon: CreditCard,
+    },
+  ], [summary, recentTransactions])
 
   const calculateDaysLeft = (dateString: string | null) => {
     if (!dateString) return null
@@ -112,8 +97,8 @@ export default function DashboardPage() {
       <DashboardLayout>
         <ErrorCard 
           title="Erreur de chargement" 
-          description={error}
-          retry={fetchDashboardData}
+          description={error.message}
+          retry={() => window.location.reload()}
         />
       </DashboardLayout>
     )
@@ -130,48 +115,34 @@ export default function DashboardPage() {
     )
   }
 
-  const stats = [
-    {
-      title: "Solde net",
-      value: `${summary.net.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
-      change: "",
-      trend: summary.net >= 0 ? "up" : "down",
-      icon: Wallet,
-    },
-    {
-      title: "Dépenses ce mois",
-      value: `${summary.total_expenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
-      change: "",
-      trend: "down",
-      icon: ArrowDownRight,
-    },
-    {
-      title: "Revenus ce mois",
-      value: `${summary.total_income.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
-      change: "",
-      trend: "up",
-      icon: ArrowUpRight,
-    },
-    {
-      title: "Transactions",
-      value: recentTransactions.length.toString(),
-      change: "",
-      trend: "neutral",
-      icon: CreditCard,
-    },
-  ]
-
   return (
-    <DashboardLayout>
-      <div className="space-y-8">
+    <QueryErrorBoundary>
+      <DashboardLayout>
+        <AuthErrorHandler error={error || undefined} />
+        <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
-              Vue d&apos;ensemble de vos finances ({summary.period.start} → {summary.period.end})
+              Vue d&apos;ensemble de vos finances {summary ? `(${summary.period.start} → ${summary.period.end})` : ""}
             </p>
           </div>
-          <Button onClick={handleSync}>Sync Bancaire</Button>
+            <Button 
+              onClick={handleSync} 
+              disabled={syncCredential.isPending || !credentials?.length}
+            >
+              {syncCredential.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Synchronisation...
+                </>
+              ) : (
+                <>
+                  <Repeat className="mr-2 h-4 w-4" />
+                  Sync Bancaire
+                </>
+              )}
+            </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -209,13 +180,13 @@ export default function DashboardPage() {
               <CardDescription>Répartition ce mois</CardDescription>
             </CardHeader>
             <CardContent>
-              {summary.by_category.length === 0 ? (
+              {summary?.by_category?.length === 0 ? (
                 <div className="h-[200px] flex items-center justify-center text-muted-foreground">
                   Aucune dépense ce mois
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {summary.by_category.map((cat) => (
+                  {summary?.by_category?.map((cat) => (
                     <div key={cat.category} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-primary" />
@@ -238,13 +209,13 @@ export default function DashboardPage() {
               <CardDescription>Dépenses récurrentes à venir</CardDescription>
             </CardHeader>
             <CardContent>
-              {upcomingRecurring.length === 0 ? (
+              {!upcomingRecurring || upcomingRecurring.length === 0 ? (
                 <div className="text-muted-foreground text-sm">
                   Aucune dépense récurrente à venir
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {upcomingRecurring.slice(0, 5).map((item) => {
+                  {upcomingRecurring?.slice(0, 5).map((item) => {
                     const daysLeft = calculateDaysLeft(item.next_expected_date)
                     return (
                       <div key={item.id} className="flex items-center justify-between">
@@ -272,37 +243,22 @@ export default function DashboardPage() {
             <CardDescription>Les 5 dernières opérations</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentTransactions.length === 0 ? (
+            {!recentTransactions || recentTransactions.length === 0 ? (
               <div className="text-muted-foreground text-sm">
                 Aucune transaction. Lancez une synchronisation bancaire.
               </div>
             ) : (
-              <div className="space-y-4">
-                {recentTransactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "h-9 w-9 rounded-full flex items-center justify-center",
-                        tx.is_expense ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"
-                      )}>
-                        {tx.is_expense ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{tx.cleaned_label || tx.raw_label}</p>
-                        <p className="text-xs text-muted-foreground">{tx.date} • {tx.category}</p>
-                      </div>
-                    </div>
-                    <div className={cn("font-medium", tx.is_expense ? "text-red-600" : "text-green-600")}>
-                      {tx.is_expense ? "-" : "+"}{Number(tx.amount).toFixed(2)} €
-                    </div>
-                  </div>
+              <div className="space-y-2">
+                {recentTransactions?.map((tx) => (
+                  <TransactionCard key={tx.id} transaction={tx} />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </QueryErrorBoundary>
   )
 }
 

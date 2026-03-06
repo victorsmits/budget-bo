@@ -10,6 +10,7 @@ import { Search, Filter, Download } from "lucide-react"
 import { api } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorCard } from "@/components/error"
+import Link from "next/link"
 
 interface Transaction {
   id: string
@@ -162,22 +163,32 @@ export default function TransactionsPage() {
                   <tbody>
                     {filteredTransactions.map((tx) => (
                       <tr key={tx.id} className="border-b hover:bg-muted/50">
-                        <td className="p-4 align-middle">{tx.date}</td>
                         <td className="p-4 align-middle">
-                          <div>
-                            <p className="font-medium">{tx.cleaned_label || tx.raw_label}</p>
-                            {tx.cleaned_label && tx.cleaned_label !== tx.raw_label && (
-                              <p className="text-xs text-muted-foreground">{tx.raw_label}</p>
-                            )}
-                          </div>
+                          <Link href={`/transactions/${tx.id}`} className="block">
+                            {tx.date}
+                          </Link>
                         </td>
                         <td className="p-4 align-middle">
-                          <Badge variant="secondary" className={categoryColors[tx.category] || categoryColors.other}>
-                            {categoryLabels[tx.category] || tx.category}
-                          </Badge>
+                          <Link href={`/transactions/${tx.id}`} className="block">
+                            <div>
+                              <p className="font-medium">{tx.cleaned_label || tx.raw_label}</p>
+                              {tx.cleaned_label && tx.cleaned_label !== tx.raw_label && (
+                                <p className="text-xs text-muted-foreground">{tx.raw_label}</p>
+                              )}
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="p-4 align-middle">
+                          <Link href={`/transactions/${tx.id}`} className="block">
+                            <Badge variant="secondary" className={categoryColors[tx.category] || categoryColors.other}>
+                              {categoryLabels[tx.category] || tx.category}
+                            </Badge>
+                          </Link>
                         </td>
                         <td className={cn("p-4 align-middle text-right font-medium", tx.is_expense ? "text-red-600" : "text-green-600")}>
-                          {tx.is_expense ? "-" : "+"}{Number(tx.amount).toFixed(2)} {tx.currency}
+                          <Link href={`/transactions/${tx.id}`} className="block">
+                            {tx.is_expense ? "-" : "+"}{Number(tx.amount).toFixed(2)} {tx.currency}
+                          </Link>
                         </td>
                       </tr>
                     ))}
