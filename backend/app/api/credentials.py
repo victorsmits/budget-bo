@@ -174,8 +174,8 @@ async def trigger_sync(
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    """Trigger bank sync via RQ worker."""
-    from worker.rq_queue import enqueue_sync_transactions, enqueue_enrich_transactions
+    """Trigger bank sync via Celery worker."""
+    from worker.tasks import sync_user_transactions, enrich_new_transactions
 
     result = await session.execute(
         select(BankCredential).where(
@@ -192,15 +192,15 @@ async def trigger_sync(
             detail="Credential not found or inactive",
         )
 
-    # Queue sync job via RQ
-    job = enqueue_sync_transactions(
+    # Queue sync job via Celery
+    sync_job = sync_user_transactions.delay(
         str(user.id),
         str(credential_id),
         days_back=30,
     )
 
     # Also queue enrichment job
-    enrich_job = enqueue_enrich_transactions(
+    enrich_job = enrich_new_transactions.delay(
         str(user.id),
         days_back=30,
     )
@@ -208,6 +208,6 @@ async def trigger_sync(
     return {
         "message": "Sync and enrichment queued",
         "credential_id": str(credential_id),
-        "sync_job_id": job.id,
+        "sync_job_id": sync_job.id,
         "enrich_job_id": enrich_job.id,
     }

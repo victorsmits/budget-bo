@@ -96,7 +96,7 @@ services:
       - budget-bo-network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # RQ Worker
+  # Celery Worker
   worker:
     build:
       context: ./backend
@@ -107,6 +107,8 @@ services:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=phi3
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
@@ -124,19 +126,21 @@ services:
         condition: service_healthy
     networks:
       - budget-bo-network
-    command: python -m worker.rq_worker
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
 
-  # RQ Scheduler (Cron)
-  scheduler:
+  # Celery Beat (Scheduler)
+  beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    container_name: budget-bo-scheduler
+    container_name: budget-bo-beat
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
     volumes:
@@ -149,26 +153,33 @@ services:
         condition: service_healthy
     networks:
       - budget-bo-network
-    command: python -m worker.rq_scheduler
+    command: celery -A worker.celery_app beat --loglevel=info
 
-  # RQ Dashboard - run from backend container
-  rq-dashboard:
+  # Flower - Celery Dashboard
+  flower:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: development
-    container_name: budget-bo-rq-dashboard
+    container_name: budget-bo-flower
     environment:
       - ENVIRONMENT=development
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - FLOWER_UNAUTHENTICATED_API=true
+    volumes:
+      - ./backend:/app
+      - /app/.venv
     ports:
-      - "9181:9181"
+      - "5555:5555"
     depends_on:
       - redis
       - worker
     networks:
       - budget-bo-network
-    command: rq-dashboard --redis-url redis://redis:6379/0 --port 9181 --bind 0.0.0.0 --username admin --password admin
+    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0
 
   # NOTE: Frontend runs natively with 'npm run dev' for better DX
   # See README.md for development setup
