@@ -49,30 +49,7 @@ def sync_user_transactions(
     and retry logic for bank timeouts.
     """
     try:
-        # For asyncpg compatibility, we need to ensure we're in a clean async context
-        # Close any existing loop and create a fresh one
-        try:
-            old_loop = asyncio.get_event_loop()
-            if old_loop.is_running():
-                # We're in a running loop (Celery worker), create new one
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    return new_loop.run_until_complete(
-                        _async_sync_user_transactions(user_id, credential_id, days_back)
-                    )
-                finally:
-                    new_loop.close()
-                    asyncio.set_event_loop(old_loop)
-            else:
-                # Loop exists but not running
-                return old_loop.run_until_complete(
-                    _async_sync_user_transactions(user_id, credential_id, days_back)
-                )
-        except RuntimeError:
-            # No loop exists
-            return asyncio.run(_async_sync_user_transactions(user_id, credential_id, days_back))
-            
+        return asyncio.run(_async_sync_user_transactions(user_id, credential_id, days_back))
     except SoftTimeLimitExceeded:
         raise
     except TimeoutError as exc:
@@ -169,7 +146,7 @@ async def _async_sync_user_transactions(
                         Transaction.user_id == user_id,
                     )
                 )
-                if existing.scalar_one_or_none():
+                if existing.first():  # Utiliser first() au lieu de scalar_one_or_none()
                     duplicate_count += 1
                     continue
 
@@ -333,20 +310,7 @@ def enrich_new_transactions(
     Enrich unprocessed transactions using local AI (Ollama).
     """
     try:
-        # Use proper event loop handling for asyncpg
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        
-        if loop and loop.is_running():
-            # Create new loop in thread for asyncpg compatibility
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, _async_enrich_transactions(user_id, days_back))
-                return future.result()
-        else:
-            return asyncio.run(_async_enrich_transactions(user_id, days_back))
+        return asyncio.run(_async_enrich_transactions(user_id, days_back))
     except Exception as exc:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)
@@ -419,21 +383,7 @@ async def _async_enrich_transactions(
 def sync_all_users_transactions(self: Task) -> dict[str, Any]:
     """Daily job to sync transactions for all active users."""
     try:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        
-        if loop and loop.is_running():
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            try:
-                return new_loop.run_until_complete(_async_sync_all_users())
-            finally:
-                new_loop.close()
-                asyncio.set_event_loop(loop)
-        else:
-            return asyncio.run(_async_sync_all_users())
+        return asyncio.run(_async_sync_all_users())
     except Exception as e:
         return {
             "status": "error",

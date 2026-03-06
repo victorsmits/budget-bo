@@ -35,6 +35,7 @@ class OllamaService:
             "options": {
                 "temperature": temperature,
                 "num_predict": 150,
+                "stop": ["\n\n", "###", "---"],  # Ajout de stop tokens
             },
         }
 
@@ -55,41 +56,105 @@ class OllamaService:
             - category: Suggested category
             - confidence: 0.0 to 1.0
         """
-        prompt = f"""Analyze this bank transaction label and extract structured information.
+        prompt = f"""You are a transaction classifier. Analyze this bank transaction label and extract structured information.
 
 Raw label: "{raw_label}"
 
-Respond with ONLY a JSON object in this exact format:
-{{
-    "cleaned_label": "Human-readable merchant name",
-    "merchant_name": "Short merchant name",
-    "category": "One of: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other",
-    "confidence": 0.95
-}}
+Instructions:
+1. Clean common bank prefixes like "PRLVM SEPA", "VIREMENT", "CARTE", "CB", etc.
+2. Extract the actual merchant name
+3. Assign the most appropriate category
+4. Be concise and accurate
 
-Rules:
-- Clean common bank prefixes like "PRLVM SEPA", "VIREMENT", "CARTE", etc.
-- Extract the actual merchant name
-- Infer category from merchant type
-- Confidence should reflect certainty (0.5-1.0)
+Available categories: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
 
-JSON response:"""
+Respond ONLY with a JSON object (no extra text, no explanation):
+{{"cleaned_label": "Merchant Name", "merchant_name": "merchant", "category": "category_name", "confidence": 0.95}}"""
 
         try:
-            response = await self._generate(prompt, temperature=0.3)
-            # Extract JSON from response
+            response = await self._generate(prompt, temperature=0.1)
+            # Nettoyer la réponse pour trouver le JSON
+            response = response.strip()
+            
+            # Si la réponse contient des backticks, extraire le JSON à l'intérieur
+            if "```" in response:
+                # Trouver le contenu entre les backticks
+                start = response.find("```") + 3
+                end = response.rfind("```")
+                if start > 2 and end > start:
+                    response = response[start:end].strip()
+                # Enlever "json" s'il est présent après ```
+                if response.startswith("json"):
+                    response = response[4:].strip()
+            
+            # Chercher le JSON dans la réponse
             json_start = response.find("{")
             json_end = response.rfind("}") + 1
+            
             if json_start >= 0 and json_end > json_start:
                 json_str = response[json_start:json_end]
-                result = json.loads(json_str)
-                return {
-                    "cleaned_label": result.get("cleaned_label", raw_label),
-                    "merchant_name": result.get("merchant_name", ""),
-                    "category": result.get("category", "other"),
-                    "confidence": float(result.get("confidence", 0.5)),
-                }
-        except Exception:
+                
+                # Utiliser une approche plus robuste pour extraire le JSON valide
+                # Reconstruire le JSON en ne gardant que les clés valides
+                import re
+                
+                # Chercher les paires clé-valeur valides avec regex
+                pattern = r'"(\w+)"\s*:\s*"([^"]*)"'
+                matches = re.findall(pattern, json_str)
+                
+                # Chercher aussi les valeurs numériques
+                pattern_num = r'"(\w+)"\s*:\s*([\d.]+)'
+                matches_num = re.findall(pattern_num, json_str)
+                
+                # Construire le dictionnaire
+                result = {}
+                for key, value in matches:
+                    result[key] = value
+                for key, value in matches_num:
+                    try:
+                        result[key] = float(value)
+                    except:
+                        result[key] = value
+                
+                # Si on a les clés requises, utiliser le résultat
+                if "cleaned_label" in result or "category" in result:
+                    category = result.get("category", "other").lower().strip()
+                    if category not in ["housing", "transportation", "food", "utilities", "healthcare", 
+                                      "entertainment", "shopping", "subscriptions", "income", 
+                                      "insurance", "education", "travel", "other"]:
+                        category = "other"
+                    
+                    return {
+                        "cleaned_label": result.get("cleaned_label", raw_label).strip(),
+                        "merchant_name": result.get("merchant_name", "").strip(),
+                        "category": category,
+                        "confidence": min(max(float(result.get("confidence", 0.5)), 0.0), 1.0),
+                    }
+                
+                # Sinon, essayer de parser le JSON directement (peut échouer)
+                try:
+                    json_str = json_str.replace('\n', '').replace('\r', '')
+                    json_str = json_str.replace("'", '"')
+                    result = json.loads(json_str)
+                    
+                    category = result.get("category", "other").lower().strip()
+                    if category not in ["housing", "transportation", "food", "utilities", "healthcare", 
+                                      "entertainment", "shopping", "subscriptions", "income", 
+                                      "insurance", "education", "travel", "other"]:
+                        category = "other"
+                    
+                    return {
+                        "cleaned_label": result.get("cleaned_label", raw_label).strip(),
+                        "merchant_name": result.get("merchant_name", "").strip(),
+                        "category": category,
+                        "confidence": min(max(float(result.get("confidence", 0.5)), 0.0), 1.0),
+                    }
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"Error parsing AI response: {e}")
+            # Ne pas essayer d'afficher 'response' si elle n'est pas définie
             pass
 
         return {

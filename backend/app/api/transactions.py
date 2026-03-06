@@ -234,6 +234,25 @@ async def mark_recurring(
     return TransactionPublic.model_validate(transaction)
 
 
+@router.post("/enrich", response_model=dict[str, Any])
+async def enrich_transactions(
+    days_back: int = Query(default=7, ge=1, le=365),
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Manually trigger AI enrichment for unprocessed transactions."""
+    from worker.tasks import enrich_new_transactions
+    
+    # Queue enrichment job
+    job = enrich_new_transactions.delay(str(user.id), days_back)
+    
+    return {
+        "message": "Enrichment job queued",
+        "job_id": job.id,
+        "days_back": days_back,
+    }
+
+
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
     transaction_id: UUID,

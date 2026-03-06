@@ -1,0 +1,164 @@
+# Classification par IA avec Ollama
+
+## Vue d'ensemble
+
+Budget Bo utilise Ollama avec le modèle Phi3 pour classifier automatiquement les transactions bancaires. Cette fonctionnalité permet de :
+
+- **Normaliser les libellés** : `PRLVM SEPA NETFLIX.COM` → `Netflix`
+- **Extraire les marchands** : Identifier automatiquement le nom du commerçant
+- **Catégoriser** : Assigner une catégorie (food, transportation, entertainment, etc.)
+- **Calculer la confiance** : Score de 0.0 à 1.0 indiquant la fiabilité de la classification
+
+## Configuration
+
+### 1. Vérifier qu'Ollama fonctionne
+
+```bash
+docker compose exec ollama ollama list
+```
+
+Le modèle `phi3` doit être présent. Si non :
+
+```bash
+docker compose exec ollama ollama pull phi3
+```
+
+### 2. Variables d'environnement
+
+Dans `.env`, assurez-vous que ces variables sont configurées :
+
+```env
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=phi3
+OLLAMA_TIMEOUT=120
+```
+
+## Utilisation
+
+### Enrichissement automatique
+
+Les nouvelles transactions sont automatiquement enrichies lors de la synchronisation bancaire.
+
+### Enrichissement manuel
+
+Pour déclencher manuellement l'enrichissement des transactions non traitées :
+
+```bash
+# Via l'API
+curl -X POST "http://localhost:8000/transactions/enrich?days_back=30" \
+  -b cookies.txt
+
+# Via le script (pour tests)
+docker compose exec backend python scripts/enrich_transactions.py
+```
+
+### Catégories disponibles
+
+- `housing` - Logement
+- `transportation` - Transport
+- `food` - Alimentation
+- `utilities` - Factures (électricité, eau, etc.)
+- `healthcare` - Santé
+- `entertainment` - Divertissement
+- `shopping` - Shopping
+- `subscriptions` - Abonnements
+- `income` - Revenus
+- `insurance` - Assurance
+- `education` - Éducation
+- `travel` - Voyage
+- `other` - Autre
+
+## Monitoring
+
+### Vérifier l'état des transactions
+
+```python
+# Nombre de transactions enrichies/non enrichies
+docker compose exec backend python -c "
+import asyncio
+from app.core.database import AsyncSessionLocal
+from app.models.models import Transaction
+from sqlalchemy import select, func
+
+async def check():
+    async with AsyncSessionLocal() as session:
+        enriched = await session.scalar(select(func.count()).where(Transaction.enriched_at.isnot(None)))
+        not_enriched = await session.scalar(select(func.count()).where(Transaction.enriched_at.is_(None)))
+        print(f'Enrichies: {enriched}, Non enrichies: {not_enriched}')
+
+asyncio.run(check())
+"
+```
+
+### Logs du worker
+
+```bash
+docker compose logs worker -f
+```
+
+### Interface Flower (monitoring Celery)
+
+Accédez à http://localhost:5555 pour voir l'état des tâches d'enrichissement.
+
+## Personnalisation
+
+### Modifier le modèle IA
+
+Pour utiliser un autre modèle (ex: llama3):
+
+1. Téléchargez le modèle :
+   ```bash
+   docker compose exec ollama ollama pull llama3:8b
+   ```
+
+2. Modifiez `.env` :
+   ```env
+   OLLAMA_MODEL=llama3:8b
+   ```
+
+3. Redémarrez les services :
+   ```bash
+   docker compose restart backend worker
+   ```
+
+### Ajuster les prompts
+
+Le service Ollama utilise des prompts spécifiques dans `app/services/ollama.py`. Vous pouvez les modifier pour améliorer la classification selon vos besoins.
+
+## Dépannage
+
+### Problème : Les transactions ne sont pas enrichies
+
+1. Vérifiez qu'Ollama fonctionne :
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+2. Vérifiez les logs du worker pour les erreurs
+
+3. Testez manuellement :
+   ```bash
+   docker compose exec backend python -c "
+   import asyncio
+   from app.services.ollama import get_ollama_service
+   
+   async def test():
+       ollama = get_ollama_service()
+       result = await ollama.normalize_label('PRLVM SEPA NETFLIX.COM')
+       print(result)
+   
+   asyncio.run(test())
+   "
+   ```
+
+### Problème : Mauvaises classifications
+
+Le modèle Phi3 peut parfois faire des erreurs. Pour améliorer :
+
+1. Augmentez la température dans `_generate()` pour plus de créativité
+2. Modifiez le prompt pour être plus spécifique
+3. Ajoutez des exemples dans le prompt (few-shot learning)
+
+### Problème : Trop de transactions en erreur
+
+Cela peut arriver si le modèle génère du JSON malformé. Le service inclut maintenant un parsing robuste avec regex pour extraire les données même si le JSON est imparfait.

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from slowapi import Limiter
+from app.core.rate_limit import limiter
 
 from app.api.auth import require_user
 from app.core.database import AsyncSessionLocal
@@ -185,6 +186,7 @@ async def update_credential(
 
 
 @router.post("/{credential_id}/sync", response_model=dict[str, Any])
+@limiter.limit("1/minute")
 async def trigger_sync(
     request: Request,
     credential_id: UUID,
@@ -192,12 +194,6 @@ async def trigger_sync(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Trigger bank sync via Celery worker."""
-    # Get limiter from app state
-    limiter = request.app.state.limiter
-    
-    # Apply rate limit
-    await limiter.check("1/minute", request)
-    
     from worker.tasks import sync_user_transactions, enrich_new_transactions
 
     result = await session.execute(
