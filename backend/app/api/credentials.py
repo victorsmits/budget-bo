@@ -4,13 +4,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from slowapi import Limiter
 
 from app.api.auth import require_user
 from app.core.database import AsyncSessionLocal
 from app.core.security import get_encryption_service
+from app.core.validation import validate_bank_credentials
 from app.models.models import (
     BankCredential,
     BankCredentialCreate,
@@ -44,11 +46,25 @@ async def list_credentials(
 
 @router.post("", response_model=BankCredentialPublic, status_code=status.HTTP_201_CREATED)
 async def create_credential(
+    request: Request,
     credential: BankCredentialCreate,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> BankCredentialPublic:
     """Create new bank credential (encrypted)."""
+    # Get limiter from app state
+    limiter = request.app.state.limiter
+    
+    # Apply rate limit
+    await limiter.check("5/minute", request)
+    
+    # Validate credential fields
+    validate_bank_credentials(
+        credential.bank_name,
+        credential.login,
+        credential.password,
+    )
+    
     # Encrypt sensitive data
     try:
         encrypted_login = encryption.encrypt(credential.login)
@@ -170,11 +186,18 @@ async def update_credential(
 
 @router.post("/{credential_id}/sync", response_model=dict[str, Any])
 async def trigger_sync(
+    request: Request,
     credential_id: UUID,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Trigger bank sync via Celery worker."""
+    # Get limiter from app state
+    limiter = request.app.state.limiter
+    
+    # Apply rate limit
+    await limiter.check("1/minute", request)
+    
     from worker.tasks import sync_user_transactions, enrich_new_transactions
 
     result = await session.execute(

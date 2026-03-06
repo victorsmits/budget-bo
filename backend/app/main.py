@@ -4,10 +4,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from app.api import auth, credentials, health, recurring, transactions
+from app.api import auth, credentials, health, recurring, transactions, users
 from app.core.config import get_settings
 from app.core.database import close_db, init_db
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 
 settings = get_settings()
 
@@ -31,6 +35,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +54,7 @@ app.include_router(auth.router)
 app.include_router(credentials.router)
 app.include_router(transactions.router)
 app.include_router(recurring.router)
+app.include_router(users.router)
 
 
 @app.get("/")

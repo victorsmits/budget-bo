@@ -52,13 +52,29 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [pagination, setPagination] = useState({
+    page: 1,
+    size: 20,
+    total: 0,
+    pages: 0,
+    has_next: false,
+    has_prev: false,
+  })
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (page = 1) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await api.transactions.list({ limit: 100 })
-      setTransactions(data)
+      const data = await api.transactions.list({ page, size: pagination.size })
+      setTransactions(data.items || [])
+      setPagination({
+        page: data.page || 1,
+        size: data.size || 20,
+        total: data.total || 0,
+        pages: data.pages || 0,
+        has_next: data.has_next || false,
+        has_prev: data.has_prev || false,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors du chargement")
     } finally {
@@ -93,7 +109,7 @@ export default function TransactionsPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
             <p className="text-muted-foreground">
-              Historique ({transactions.length} transactions)
+              Historique ({pagination.total} transactions)
             </p>
           </div>
           <Button variant="outline" disabled>

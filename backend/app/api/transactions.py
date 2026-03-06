@@ -10,12 +10,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.auth import require_user
 from app.core.database import AsyncSessionLocal
+from app.core.validation import validate_date_range
 from app.models.models import (
     Transaction,
     TransactionCategory,
     TransactionPublic,
     User,
 )
+from app.models.pagination import PaginatedResponse, PaginationParams
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -26,10 +28,9 @@ async def get_session() -> AsyncSession:
         yield session
 
 
-@router.get("", response_model=list[TransactionPublic])
+@router.get("", response_model=PaginatedResponse[TransactionPublic])
 async def list_transactions(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    pagination: PaginationParams = Depends(),
     category: TransactionCategory | None = None,
     is_expense: bool | None = None,
     is_recurring: bool | None = None,
@@ -37,17 +38,20 @@ async def list_transactions(
     end_date: date | None = None,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
-) -> list[TransactionPublic]:
+) -> PaginatedResponse[TransactionPublic]:
     """
     List transactions for current user with filtering.
     
     Query params:
-    - skip/limit: Pagination
+    - pagination: Page and size for pagination
     - category: Filter by category
     - is_expense: Filter expenses/income
     - is_recurring: Filter recurring transactions
     - start_date/end_date: Date range filter
     """
+    # Validate date range if both provided
+    if start_date and end_date:
+        validate_date_range(start_date, end_date)
     query = select(Transaction).where(Transaction.user_id == user.id)
 
     if category:
@@ -61,11 +65,22 @@ async def list_transactions(
     if end_date:
         query = query.where(Transaction.date <= end_date)
 
-    query = query.order_by(Transaction.date.desc()).offset(skip).limit(limit)
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await session.execute(count_query)
+    total = total_result.scalar()
 
+    # Get paginated results
+    query = query.order_by(Transaction.date.desc()).offset(pagination.skip).limit(pagination.size)
     result = await session.execute(query)
     transactions = result.scalars().all()
-    return list(transactions)
+
+    return PaginatedResponse.create(
+        items=list(transactions),
+        total=total,
+        page=pagination.page,
+        size=pagination.size,
+    )
 
 
 @router.get("/summary", response_model=dict[str, Any])
@@ -80,6 +95,9 @@ async def get_summary(
         start_date = date.today().replace(day=1)  # First day of current month
     if not end_date:
         end_date = date.today()
+    
+    # Validate date range
+    validate_date_range(start_date, end_date)
 
     # Total expenses
     result = await session.execute(

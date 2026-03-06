@@ -2,6 +2,7 @@
 
 import os
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import setup_logging
 
 # Create Celery app
@@ -30,6 +31,11 @@ celery_app.conf.beat_schedule = {
     "daily-sync": {
         "task": "worker.tasks.sync_all_users",
         "schedule": 86400.0,  # Every 24 hours
+        "args": (),
+    },
+    "daily-sync-2am": {
+        "task": "worker.tasks.sync_all_users",
+        "schedule": crontab(hour=2, minute=0),  # Every day at 2:00 AM
         "args": (),
     },
 }

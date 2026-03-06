@@ -53,12 +53,13 @@ export const api = {
 
   // Transactions
   transactions: {
-    list: (params?: { category?: string; start_date?: string; end_date?: string; limit?: number }) => {
+    list: (params?: { category?: string; start_date?: string; end_date?: string; page?: number; size?: number }) => {
       const searchParams = new URLSearchParams()
       if (params?.category) searchParams.append("category", params.category)
       if (params?.start_date) searchParams.append("start_date", params.start_date)
       if (params?.end_date) searchParams.append("end_date", params.end_date)
-      if (params?.limit) searchParams.append("limit", params.limit.toString())
+      if (params?.page) searchParams.append("page", params.page.toString())
+      if (params?.size) searchParams.append("size", params.size.toString())
       const query = searchParams.toString()
       return apiClient(`/transactions${query ? `?${query}` : ""}`)
     },
