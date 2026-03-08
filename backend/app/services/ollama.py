@@ -110,17 +110,28 @@ class OllamaService:
         """
         options = {"temperature": temperature, "num_predict": 256}
 
+        def _request(active_tools: list[dict], use_json_format: bool = True):
+            payload: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "tools": active_tools,
+                "options": options,
+            }
+            if use_json_format:
+                payload["format"] = "json"
+            return self.client.chat(**payload)
+
         for _ in range(3):  # max 3 tool-call rounds to keep latency bounded
             try:
-                response = self.client.chat(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools or [],
-                    format="json",
-                    options=options,
-                )
+                response = _request(tools or [], use_json_format=True)
             except Exception:
-                return "{}"
+                try:
+                    response = _request([], use_json_format=True)
+                except Exception:
+                    try:
+                        response = _request([], use_json_format=False)
+                    except Exception:
+                        return "{}"
 
             message = response.message
 
