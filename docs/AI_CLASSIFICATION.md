@@ -5,6 +5,7 @@
 Budget Bo utilise Ollama avec le modèle Phi3 pour classifier automatiquement les transactions bancaires. Cette fonctionnalité permet de :
 
 - **Normaliser les libellés** : `PRLVM SEPA NETFLIX.COM` → `Netflix`
+- **Éviter les faux nettoyages** : si aucun meilleur libellé n'est trouvé, `cleaned_label` reste vide (`""`) au lieu de recopier le libellé brut
 - **Extraire les marchands** : Identifier automatiquement le nom du commerçant
 - **Catégoriser** : Assigner une catégorie (food, transportation, entertainment, etc.)
 - **Calculer la confiance** : Score de 0.0 à 1.0 indiquant la fiabilité de la classification

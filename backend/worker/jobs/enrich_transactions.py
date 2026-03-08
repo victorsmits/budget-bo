@@ -62,14 +62,14 @@ def enrich_single_transaction(
 
                 normalized_merchant = normalize_consumer_merchant(
                     normalization.get("merchant_name"),
-                    normalization.get("cleaned_label", raw_label),
+                    normalization.get("cleaned_label", ""),
                     raw_label,
                 )
-                tx.cleaned_label = normalization.get("cleaned_label", raw_label)
+                tx.cleaned_label = normalization.get("cleaned_label", "")
                 tx.merchant_name = normalized_merchant
 
                 rule_based_category = infer_category_from_text(
-                    label=tx.cleaned_label,
+                    label=tx.cleaned_label or tx.merchant_name or raw_label,
                     merchant=tx.merchant_name or "",
                     amount=float(tx.amount),
                 )
@@ -85,7 +85,7 @@ def enrich_single_transaction(
                 categorization: dict[str, Any] = {}
                 if needs_llm_categorization:
                     categorization = ollama_service.categorize_transaction(
-                        label=tx.cleaned_label,
+                        label=tx.cleaned_label or tx.merchant_name or raw_label,
                         amount=signed_amount,
                         merchant_hint=tx.merchant_name,
                     )
@@ -97,7 +97,7 @@ def enrich_single_transaction(
                 )
 
                 if str(selected_category) == "income" and not has_explicit_income_signal(
-                    tx.cleaned_label,
+                    tx.cleaned_label or tx.merchant_name or raw_label,
                     tx.merchant_name or "",
                 ):
                     fallback_category = rule_based_category or normalized_category

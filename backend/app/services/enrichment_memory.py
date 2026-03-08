@@ -73,7 +73,7 @@ def upsert_rule_from_transaction(session: Session, transaction: Transaction) -> 
 
     now = datetime.utcnow()
     if existing:
-        existing.cleaned_label = transaction.cleaned_label or transaction.raw_label
+        existing.cleaned_label = transaction.cleaned_label or ""
         existing.merchant_name = transaction.merchant_name
         existing.category = transaction.category
         existing.usage_count += 1
@@ -84,7 +84,7 @@ def upsert_rule_from_transaction(session: Session, transaction: Transaction) -> 
     rule = EnrichmentRule(
         user_id=transaction.user_id,
         label_fingerprint=fingerprint,
-        cleaned_label=transaction.cleaned_label or transaction.raw_label,
+        cleaned_label=transaction.cleaned_label or "",
         merchant_name=transaction.merchant_name,
         category=transaction.category,
         usage_count=1,
@@ -112,7 +112,7 @@ async def upsert_rule_from_transaction_async(
 
     now = datetime.utcnow()
     if existing:
-        existing.cleaned_label = transaction.cleaned_label or transaction.raw_label
+        existing.cleaned_label = transaction.cleaned_label or ""
         existing.merchant_name = transaction.merchant_name
         existing.category = transaction.category
         existing.usage_count += 1
@@ -123,7 +123,7 @@ async def upsert_rule_from_transaction_async(
     rule = EnrichmentRule(
         user_id=transaction.user_id,
         label_fingerprint=fingerprint,
-        cleaned_label=transaction.cleaned_label or transaction.raw_label,
+        cleaned_label=transaction.cleaned_label or "",
         merchant_name=transaction.merchant_name,
         category=transaction.category,
         usage_count=1,

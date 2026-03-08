@@ -270,10 +270,17 @@ def _safe_category(value: Any) -> str:
 
 
 def _validate_normalize(result: dict, raw_label: str) -> dict[str, Any]:
-    cleaned = result.get("cleaned_label", raw_label).strip()
+    candidate_cleaned = str(result.get("cleaned_label", "")).strip()
+    if candidate_cleaned.lower() == raw_label.strip().lower():
+        candidate_cleaned = ""
+
+    candidate_merchant = str(result.get("merchant_name", "")).strip()
+    if candidate_merchant.lower() == raw_label.strip().lower():
+        candidate_merchant = ""
+
     return {
-        "cleaned_label": cleaned,
-        "merchant_name": result.get("merchant_name", cleaned).strip(),
+        "cleaned_label": candidate_cleaned,
+        "merchant_name": candidate_merchant,
         "category": _safe_category(result.get("category")),
         "confidence": float(result.get("confidence", 0.5)),
     }

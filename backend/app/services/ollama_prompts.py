@@ -27,6 +27,7 @@ RÈGLES CRITIQUES :
 - Si c'est une station-service, catégorie "transportation" (pas shopping).
 - Supermarché => "groceries". Restaurant/snack/livraison repas => "dining".
 - Si le commerçant ou le secteur n'est pas clairement identifiable, utilise web_search sans hésiter avant de répondre.
+- Si tu ne trouves PAS de meilleur libellé compréhensible que le libellé brut, renvoie `cleaned_label` vide (""), jamais une copie du libellé initial.
 - Si vraiment inconnu après recherche, utilise "shopping" ou "other" mais EN DERNIER RECOURS.
 
 Catégories valides : {categories}
