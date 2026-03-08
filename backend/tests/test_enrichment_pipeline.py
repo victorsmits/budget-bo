@@ -109,14 +109,21 @@ def test_pipeline_triggers_second_pass_when_ambiguous() -> None:
     assert "llm_categorization" in result.reasoning
 
 
-def test_pipeline_uses_alias_for_arcadya_terminal_label() -> None:
+def test_pipeline_uses_llm_public_resolution_for_opaque_labels() -> None:
     service = FakeOllamaService(
         normalization={
-            "cleaned_label": "X7722 ARCADYA GARONNE TOUL",
+            "cleaned_label": "",
             "merchant_name": "Arcadya Garonne Toul",
             "category": "shopping",
-            "confidence": 0.95,
-        }
+            "confidence": 0.8,
+        },
+        resolution={
+            "merchant_name": "Esprit Toulousain",
+            "cleaned_label": "Esprit Toulousain",
+            "category": "drinking",
+            "confidence": 0.72,
+            "reasoning": "search evidence found for local bar",
+        },
     )
 
     result = run_enrichment_pipeline(
@@ -126,19 +133,26 @@ def test_pipeline_uses_alias_for_arcadya_terminal_label() -> None:
         ollama_service=service,  # type: ignore[arg-type]
     )
 
-    assert service.resolve_calls == 0
+    assert service.resolve_calls == 1
     assert result.cleaned_label == "Esprit Toulousain"
     assert result.category.value == "drinking"
 
 
-def test_pipeline_uses_alias_for_ligimida_terminal_label() -> None:
+def test_pipeline_keeps_low_confidence_when_resolution_fails() -> None:
     service = FakeOllamaService(
         normalization={
             "cleaned_label": "",
             "merchant_name": "Ligimida",
             "category": "shopping",
             "confidence": 0.95,
-        }
+        },
+        resolution={
+            "merchant_name": "",
+            "cleaned_label": "",
+            "category": "other",
+            "confidence": 0.2,
+            "reasoning": "insufficient evidence",
+        },
     )
 
     result = run_enrichment_pipeline(
@@ -148,6 +162,5 @@ def test_pipeline_uses_alias_for_ligimida_terminal_label() -> None:
         ollama_service=service,  # type: ignore[arg-type]
     )
 
-    assert service.resolve_calls == 0
-    assert result.cleaned_label == "Grabuge"
-    assert result.category.value == "food"
+    assert service.resolve_calls == 1
+    assert result.confidence < 0.8

@@ -11,7 +11,6 @@ from app.services.enrichment_intelligence import (
     has_explicit_income_signal,
     infer_category_from_text,
     normalize_consumer_merchant,
-    resolve_known_merchant_alias,
 )
 from app.services.ollama import OllamaService
 
@@ -45,20 +44,11 @@ def run_enrichment_pipeline(
         raw_label,
     )
 
-    alias_resolution = resolve_known_merchant_alias(raw_label)
-    if alias_resolution is not None:
-        cleaned_label = alias_resolution.cleaned_label
-        merchant_name = alias_resolution.merchant_name
-
     merchant_resolution: dict[str, object] = {}
-    if alias_resolution is None and _should_force_public_merchant_resolution(
-        raw_label,
-        cleaned_label,
-        merchant_name,
-    ):
+    if _should_force_public_merchant_resolution(raw_label, cleaned_label, merchant_name):
         merchant_resolution = ollama_service.resolve_public_merchant(raw_label, merchant_name)
         resolved_merchant = str(merchant_resolution.get("merchant_name", "")).strip()
-        if resolved_merchant and float(merchant_resolution.get("confidence", 0.0)) >= 0.55:
+        if resolved_merchant and float(merchant_resolution.get("confidence", 0.0)) >= 0.45:
             merchant_name = resolved_merchant
             cleaned_candidate = str(merchant_resolution.get("cleaned_label", "")).strip()
             if cleaned_candidate:
@@ -86,13 +76,11 @@ def run_enrichment_pipeline(
         )
 
     llm_category = _safe_category(normalization.get("category"))
-    alias_category = _safe_category(alias_resolution.category if alias_resolution else None)
     resolver_category = _safe_category(merchant_resolution.get("category"))
     second_pass_category = _safe_category(categorization.get("category"))
     selected_category = _choose_category(
         heuristic_category=heuristic_category,
         second_pass_category=second_pass_category,
-        alias_category=alias_category,
         resolver_category=resolver_category,
         llm_category=llm_category,
     )
@@ -111,7 +99,6 @@ def run_enrichment_pipeline(
         cleaned_label=cleaned_label,
         merchant_name=merchant_name,
         normalization_confidence=float(normalization.get("confidence", 0.5)),
-        alias_confidence=float(alias_resolution.confidence if alias_resolution else 0.0),
         resolver_confidence=float(merchant_resolution.get("confidence", 0.0)),
         categorization_confidence=float(categorization.get("confidence", 0.0)),
         heuristic_category=heuristic_category,
@@ -124,10 +111,6 @@ def run_enrichment_pipeline(
         f"source=llm_normalization({llm_category})",
         f"source=heuristic({heuristic_category or 'none'})",
     ]
-    if alias_resolution is not None:
-        reasoning_parts.append(f"source=merchant_alias({alias_resolution.category})")
-        reasoning_parts.append(f"alias_reasoning={alias_resolution.reasoning}")
-
     if merchant_resolution:
         reasoning_parts.append(f"source=merchant_resolution({resolver_category})")
         if resolver_reasoning := str(merchant_resolution.get("reasoning", "")).strip():
@@ -147,19 +130,17 @@ def run_enrichment_pipeline(
     )
 
 
-
 def _choose_category(
     *,
     heuristic_category: str | None,
     second_pass_category: str,
-    alias_category: str,
     resolver_category: str,
     llm_category: str,
 ) -> str:
     if heuristic_category:
         return heuristic_category
 
-    prioritized = (second_pass_category, alias_category, resolver_category, llm_category)
+    prioritized = (second_pass_category, resolver_category, llm_category)
     for category in prioritized:
         if category and category not in {"other", "shopping"}:
             return category
@@ -169,6 +150,7 @@ def _choose_category(
             return category
 
     return "other"
+
 
 def _map_category(category_str: str) -> TransactionCategory:
     try:
@@ -193,7 +175,6 @@ def _should_force_public_merchant_resolution(
     if _is_opaque_token(merchant_name):
         return True
 
-    # Trigger on terminal-like labels such as "X7722 SOMETHING TOULOUSE"
     return bool(re.search(r"\bx\d{3,6}\b", raw_label.lower()))
 
 
@@ -215,7 +196,6 @@ def _calibrate_confidence(
     cleaned_label: str,
     merchant_name: str,
     normalization_confidence: float,
-    alias_confidence: float,
     resolver_confidence: float,
     categorization_confidence: float,
     heuristic_category: str | None,
@@ -226,8 +206,7 @@ def _calibrate_confidence(
     """Blend confidence from multiple signals to prioritize precision over recall."""
     score = 0.15
     score += max(0.0, min(normalization_confidence, 1.0)) * 0.45
-    score += max(0.0, min(alias_confidence, 1.0)) * 0.25
-    score += max(0.0, min(resolver_confidence, 1.0)) * 0.15
+    score += max(0.0, min(resolver_confidence, 1.0)) * 0.2
     score += max(0.0, min(categorization_confidence, 1.0)) * 0.25
 
     if heuristic_category:

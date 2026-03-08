@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 
 from app.services.ai_constants import VALID_CATEGORIES
 
@@ -59,6 +58,7 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "mcdonald",
         "kfc",
     ),
+    "drinking": ("bar", "pub", "cocktail", "brasserie", "cafe"),
     "transportation": (
         "sncf",
         "ratp",
@@ -117,39 +117,6 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
-@dataclass(frozen=True)
-class MerchantAliasResolution:
-    cleaned_label: str
-    merchant_name: str
-    category: str
-    confidence: float
-    reasoning: str
-
-
-KNOWN_OPAQUE_MERCHANT_ALIASES: tuple[tuple[tuple[str, ...], MerchantAliasResolution], ...] = (
-    (
-        ("x7722", "arcadya", "garonne", "toul"),
-        MerchantAliasResolution(
-            cleaned_label="Esprit Toulousain",
-            merchant_name="Esprit Toulousain",
-            category="drinking",
-            confidence=0.88,
-            reasoning="alias_rule:x7722_arcadya_garonne_toul",
-        ),
-    ),
-    (
-        ("x7722", "ligimida", "toulouse"),
-        MerchantAliasResolution(
-            cleaned_label="Grabuge",
-            merchant_name="Grabuge",
-            category="food",
-            confidence=0.78,
-            reasoning="alias_rule:x7722_ligimida_toulouse",
-        ),
-    ),
-)
-
-
 def _clean_tokens(value: str) -> list[str]:
     cleaned = re.sub(r"[^a-zA-Z0-9\s&+.-]", " ", value.lower())
     return [token for token in cleaned.split() if token]
@@ -173,15 +140,6 @@ def normalize_consumer_merchant(
         return (cleaned_label or raw_label).strip()
 
     return pretty.title()
-
-
-def resolve_known_merchant_alias(raw_label: str) -> MerchantAliasResolution | None:
-    """Resolve known opaque terminal labels to their public-facing merchant names."""
-    label = raw_label.lower()
-    for required_tokens, resolution in KNOWN_OPAQUE_MERCHANT_ALIASES:
-        if all(token in label for token in required_tokens):
-            return resolution
-    return None
 
 
 def has_explicit_income_signal(label: str, merchant: str) -> bool:

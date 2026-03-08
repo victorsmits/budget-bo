@@ -108,7 +108,7 @@ Le pipeline a été refondu pour s'inspirer des pratiques fintech (priorité à 
 4. **Passage LLM #2 conditionnel (catégorisation)** : déclenché uniquement quand la catégorie reste ambiguë (`other` / `shopping` / `income` sans signal fort).
 5. **Calibration de confiance** : score final calculé à partir du consensus entre heuristiques + LLM, pénalisé en cas d'ambiguïté.
 6. **Reasoning structuré** : la transaction conserve une trace de la provenance de la décision (`llm_normalization`, `heuristic`, `merchant_resolution`, `llm_categorization`).
-7. **Résolution de nom public** : pour les libellés opaques (ex: préfixes terminal type `X7722`), une passe dédiée tente d'identifier l'enseigne grand public via recherche web enrichie.
+7. **Résolution de nom public** : pour les libellés opaques (ex: préfixes terminal type `X7722`), une passe LLM dédiée tente d'identifier l'enseigne grand public via recherche web enrichie (sans table de mapping hardcodée).
 8. **Confiance conservatrice** : quand le nom public n'est pas vérifiable (marchand opaque, `cleaned_label` vide), le score est volontairement pénalisé.
 
 Cette approche réduit les hallucinations, améliore la stabilité sur les cas connus et permet d'isoler les cas réellement ambigus.
