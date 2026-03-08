@@ -40,6 +40,8 @@ OLLAMA_TIMEOUT=120
 
 Les nouvelles transactions sont automatiquement enrichies lors de la synchronisation bancaire.
 
+Le prompt IA force désormais la vérification via recherche web (`web_search`) dès que le marchand est ambigu ou peu connu, afin d'obtenir un nom d'enseigne plus fiable et une meilleure catégorie métier.
+
 ### Enrichissement manuel
 
 Pour déclencher manuellement l'enrichissement des transactions non traitées :

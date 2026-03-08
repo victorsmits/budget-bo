@@ -169,7 +169,7 @@ class OllamaService:
         messages = [
             {
                 "role": "system",
-                "content": "Tu es un expert en analyse de relevés bancaires français. Tu réponds UNIQUEMENT en JSON valide.",
+                "content": "Tu es un expert en analyse de relevés bancaires français. Tu réponds UNIQUEMENT en JSON valide. Si un marchand est ambigu ou peu connu, utilise web_search avant de catégoriser.",
             },
             {
                 "role": "user",
@@ -187,6 +187,7 @@ Règles :
 - Station essence / péage / transport -> "transportation"
 - Bricolage / ameublement -> "home_improvement"
 - Évite "shopping" si une catégorie plus précise existe
+- Si le secteur d'activité n'est pas clair, utilise web_search avant de trancher
 
 JSON attendu :
 {{"category":"…","reasoning":"…","is_expense":true,"confidence":0.95}}""",

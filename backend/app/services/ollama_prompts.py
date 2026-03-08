@@ -8,6 +8,7 @@ def build_normalization_system_prompt() -> str:
         "Tu es expert en transactions bancaires FR. "
         "Objectif: retourner un nom compréhensible pour un humain (enseigne de boutique), "
         "pas la raison sociale légale. "
+        "Si le commerçant n'est pas immédiatement évident, utilise l'outil web_search avant de répondre. "
         "Réponds UNIQUEMENT en JSON valide."
     )
 
@@ -25,7 +26,8 @@ RÈGLES CRITIQUES :
 - Si tu vois "AMAZON MKTPLACE" => merchant "Amazon".
 - Si c'est une station-service, catégorie "transportation" (pas shopping).
 - Supermarché => "groceries". Restaurant/snack/livraison repas => "dining".
-- Si vraiment inconnu, utilise "shopping" ou "other" mais EN DERNIER RECOURS.
+- Si le commerçant ou le secteur n'est pas clairement identifiable, utilise web_search sans hésiter avant de répondre.
+- Si vraiment inconnu après recherche, utilise "shopping" ou "other" mais EN DERNIER RECOURS.
 
 Catégories valides : {categories}
 
