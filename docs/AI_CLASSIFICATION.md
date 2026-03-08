@@ -71,11 +71,14 @@ curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
 
 - `housing` - Logement
 - `transportation` - Transport
-- `food` - Alimentation
+- `food` - Alimentation (générique)
+- `groceries` - Courses / supermarché
+- `dining` - Restaurant / snack / livraison repas
 - `utilities` - Factures (électricité, eau, etc.)
 - `healthcare` - Santé
 - `entertainment` - Divertissement
-- `shopping` - Shopping
+- `shopping` - Shopping (fallback)
+- `home_improvement` - Maison / bricolage / ameublement
 - `subscriptions` - Abonnements
 - `income` - Revenus
 - `insurance` - Assurance

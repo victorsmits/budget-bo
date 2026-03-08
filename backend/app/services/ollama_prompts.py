@@ -5,32 +5,35 @@ from app.services.ai_constants import VALID_CATEGORIES
 
 def build_normalization_system_prompt() -> str:
     return (
-        "Tu es un expert en analyse de relevés bancaires français. "
-        "Tu réponds UNIQUEMENT en JSON valide. "
-        "Si tu ne reconnais pas le commerçant, utilise l'outil web_search."
+        "Tu es expert en transactions bancaires FR. "
+        "Objectif: retourner un nom compréhensible pour un humain (enseigne de boutique), "
+        "pas la raison sociale légale. "
+        "Réponds UNIQUEMENT en JSON valide."
     )
 
 
 def build_normalization_user_prompt(raw_label: str) -> str:
     categories = ", ".join(sorted(VALID_CATEGORIES))
-    return f'''Analyse ce libellé bancaire et extrais le nom du commerçant + catégorie.
+    return f'''Analyse ce libellé bancaire et extrais: nom boutique compréhensible + catégorie métier.
 
 LIBELLÉ : "{raw_label}"
 
-RÈGLES :
-- Supprimer : CARTE, CB, PRLV, PRLVM, PRELEVEMENT, SEPA, VIR, codes X1234, refs /REF…
-- Supprimer les villes en fin de libellé (PARIS, LYON…)
-- "BOUCH."→Boucherie | "PHARM."→Pharmacie | "ELECTRO."→Électronique
-- Virement entrant / SALAIRE → category "income"
-- Si tu ne reconnais pas le commerçant → utilise web_search avant de répondre
+RÈGLES CRITIQUES :
+- Le `merchant_name` doit être l'enseigne connue du client (ex: "Carrefour", "IKEA", "SNCF").
+- Évite les raisons sociales (SAS, SARL, HOLDING, INC...) et les prestataires de paiement.
+- Si tu vois "UBER EATS" => merchant "Uber Eats" (pas "Uber BV").
+- Si tu vois "AMAZON MKTPLACE" => merchant "Amazon".
+- Si c'est une station-service, catégorie "transportation" (pas shopping).
+- Supermarché => "groceries". Restaurant/snack/livraison repas => "dining".
+- Si vraiment inconnu, utilise "shopping" ou "other" mais EN DERNIER RECOURS.
 
 Catégories valides : {categories}
 
-Exemples :
-"PRLVM SEPA NETFLIX.COM"   → {{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions","confidence":0.98}}
-"X7722 CANAL PLUS FR ISSY" → {{"cleaned_label":"Canal+","merchant_name":"Canal+","category":"subscriptions","confidence":0.95}}
-"CARTE 05/03 CARREFOUR"    → {{"cleaned_label":"Carrefour","merchant_name":"Carrefour","category":"food","confidence":0.95}}
-"VIR SEPA SALAIRE MARS"    → {{"cleaned_label":"Salaire","merchant_name":"Salaire","category":"income","confidence":0.97}}
+Exemples attendus:
+"CB CARREFOUR CITY PARIS" -> {{"cleaned_label":"Carrefour City","merchant_name":"Carrefour City","category":"groceries","confidence":0.97}}
+"CARTE UBER EATS" -> {{"cleaned_label":"Uber Eats","merchant_name":"Uber Eats","category":"dining","confidence":0.96}}
+"PRLV TOTAL ENERGIES" -> {{"cleaned_label":"TotalEnergies","merchant_name":"TotalEnergies","category":"transportation","confidence":0.92}}
+"CB LEROY MERLIN" -> {{"cleaned_label":"Leroy Merlin","merchant_name":"Leroy Merlin","category":"home_improvement","confidence":0.95}}
 
-Réponds UNIQUEMENT avec ce JSON :
+Réponds UNIQUEMENT avec ce JSON:
 {{"cleaned_label":"…","merchant_name":"…","category":"…","confidence":0.95}}'''

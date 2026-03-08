@@ -13,6 +13,10 @@ from app.services.enrichment_memory import (
     get_rule_for_label,
     upsert_rule_from_transaction,
 )
+from app.services.enrichment_intelligence import (
+    infer_category_from_text,
+    normalize_consumer_merchant,
+)
 from app.services.ollama import OllamaService
 from worker.celery_app import celery_app
 
@@ -52,12 +56,37 @@ def enrich_single_transaction(
                 learned_rule.usage_count += 1
                 learned_rule.updated_at = datetime.utcnow()
             else:
-                normalization = OllamaService().normalize_label(raw_label)
+                ollama_service = OllamaService()
+                normalization = ollama_service.normalize_label(raw_label)
 
-                tx.cleaned_label = normalization["cleaned_label"]
-                tx.merchant_name = normalization["merchant_name"]
-                tx.ai_confidence = normalization["confidence"]
-                tx.category = _map_category(normalization["category"])
+                normalized_merchant = normalize_consumer_merchant(
+                    normalization.get("merchant_name"),
+                    normalization.get("cleaned_label", raw_label),
+                    raw_label,
+                )
+                tx.cleaned_label = normalization.get("cleaned_label", raw_label)
+                tx.merchant_name = normalized_merchant
+
+                categorization = ollama_service.categorize_transaction(
+                    label=tx.cleaned_label,
+                    amount=float(tx.amount),
+                    merchant_hint=tx.merchant_name,
+                )
+
+                rule_based_category = infer_category_from_text(
+                    label=tx.cleaned_label,
+                    merchant=tx.merchant_name or "",
+                    amount=float(tx.amount),
+                )
+                selected_category = rule_based_category or categorization.get("category") or normalization.get("category")
+
+                tx.ai_confidence = max(
+                    float(normalization.get("confidence", 0.0)),
+                    float(categorization.get("confidence", 0.0)),
+                )
+                tx.ai_category_reasoning = categorization.get("reasoning", "")
+                tx.is_expense = bool(categorization.get("is_expense", tx.amount < 0))
+                tx.category = _map_category(str(selected_category))
                 tx.enriched_at = datetime.utcnow()
                 upsert_rule_from_transaction(session, tx)
 

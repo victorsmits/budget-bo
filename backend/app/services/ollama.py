@@ -182,6 +182,11 @@ Montant : {amount} EUR ({direction})
 Règles :
 - Virement entrant / SALAIRE → "income"
 - Remboursement montant positif → "income"
+- Supermarchés -> "groceries"
+- Restaurants/snack/livraison repas -> "dining"
+- Station essence / péage / transport -> "transportation"
+- Bricolage / ameublement -> "home_improvement"
+- Évite "shopping" si une catégorie plus précise existe
 
 JSON attendu :
 {{"category":"…","reasoning":"…","is_expense":true,"confidence":0.95}}""",
