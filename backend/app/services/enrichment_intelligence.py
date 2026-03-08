@@ -22,6 +22,20 @@ LEGAL_SUFFIXES = {
     "holding",
 }
 
+INCOME_KEYWORDS = (
+    "salaire",
+    "paie",
+    "payroll",
+    "remboursement",
+    "refund",
+    "virement entrant",
+    "versement",
+    "allocation",
+    "caf",
+    "pole emploi",
+    "indemn",
+)
+
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "groceries": ("carrefour", "auchan", "intermarche", "monoprix", "casino", "lidl", "aldi", "u express"),
     "dining": ("restaurant", "brasserie", "boulangerie", "snack", "pizza", "uber eats", "deliveroo", "mcdonald", "kfc"),
@@ -33,7 +47,7 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "home_improvement": ("leroy merlin", "castorama", "brico", "ikea", "mr bricolage"),
     "insurance": ("assurance", "axa", "maif", "macif", "allianz", "generali"),
     "education": ("ecole", "universite", "formation", "udemy", "coursera"),
-    "income": ("salaire", "paie", "remboursement", "virement entrant"),
+    "income": INCOME_KEYWORDS,
 }
 
 
@@ -58,16 +72,20 @@ def normalize_consumer_merchant(merchant_name: str | None, cleaned_label: str, r
     return pretty.title()
 
 
+def has_explicit_income_signal(label: str, merchant: str) -> bool:
+    """Return True only when text strongly indicates a real income transaction."""
+    corpus = f"{label} {merchant}".lower()
+    return any(keyword in corpus for keyword in INCOME_KEYWORDS)
+
+
 def infer_category_from_text(label: str, merchant: str, amount: float) -> str | None:
     """Infer category from merchant/label with deterministic sector hints."""
+    del amount
     corpus = f"{label} {merchant}".lower()
 
     for category, keywords in CATEGORY_KEYWORDS.items():
         if any(keyword in corpus for keyword in keywords):
             if category in VALID_CATEGORIES:
                 return category
-
-    if amount > 0 and "income" in VALID_CATEGORIES:
-        return "income"
 
     return None

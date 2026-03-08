@@ -180,8 +180,8 @@ Montant : {amount} EUR ({direction})
 {hint}Catégories valides : {", ".join(sorted(VALID_CATEGORIES))}
 
 Règles :
-- Virement entrant / SALAIRE → "income"
-- Remboursement montant positif → "income"
+- "income" UNIQUEMENT si indice explicite: salaire, paie, remboursement, allocation, virement entrant
+- Un montant positif seul NE SUFFIT PAS pour classer en "income"
 - Supermarchés -> "groceries"
 - Restaurants/snack/livraison repas -> "dining"
 - Station essence / péage / transport -> "transportation"

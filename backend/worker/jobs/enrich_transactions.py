@@ -14,6 +14,7 @@ from app.services.enrichment_memory import (
     upsert_rule_from_transaction,
 )
 from app.services.enrichment_intelligence import (
+    has_explicit_income_signal,
     infer_category_from_text,
     normalize_consumer_merchant,
 )
@@ -79,6 +80,16 @@ def enrich_single_transaction(
                     amount=float(tx.amount),
                 )
                 selected_category = rule_based_category or categorization.get("category") or normalization.get("category")
+
+                if str(selected_category) == "income" and not has_explicit_income_signal(
+                    tx.cleaned_label,
+                    tx.merchant_name or "",
+                ):
+                    fallback_category = rule_based_category or normalization.get("category")
+                    if fallback_category and str(fallback_category) != "income":
+                        selected_category = fallback_category
+                    else:
+                        selected_category = "other"
 
                 tx.ai_confidence = max(
                     float(normalization.get("confidence", 0.0)),

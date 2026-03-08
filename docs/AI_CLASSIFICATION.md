@@ -42,6 +42,8 @@ Les nouvelles transactions sont automatiquement enrichies lors de la synchronisa
 
 Le prompt IA force désormais la vérification via recherche web (`web_search`) dès que le marchand est ambigu ou peu connu, afin d'obtenir un nom d'enseigne plus fiable et une meilleure catégorie métier.
 
+La catégorie `income` est désormais appliquée uniquement en présence d'indices explicites (salaire, paie, remboursement, allocation, etc.) et non pas simplement parce que le montant est positif.
+
 ### Enrichissement manuel
 
 Pour déclencher manuellement l'enrichissement des transactions non traitées :
