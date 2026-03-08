@@ -1,16 +1,38 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Brain, Calendar, Tag, CreditCard, Loader2 } from "lucide-react"
+import { ArrowLeft, Brain, Calendar, Tag, CreditCard, Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import DashboardLayout from "@/app/dashboard-layout"
-import { useTransaction, useEnrichTransaction } from "@/hooks/api/useTransactions"
+import {
+  useTransaction,
+  useEnrichTransaction,
+  useCorrectTransaction,
+} from "@/hooks/api/useTransactions"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
-import { toast } from "sonner"
+
+const categories = [
+  "housing",
+  "transportation",
+  "food",
+  "utilities",
+  "healthcare",
+  "entertainment",
+  "shopping",
+  "subscriptions",
+  "income",
+  "insurance",
+  "education",
+  "travel",
+  "other",
+]
 
 export default function TransactionDetailPage() {
   const params = useParams()
@@ -19,22 +41,45 @@ export default function TransactionDetailPage() {
 
   const { data: transaction, isLoading, error } = useTransaction(transactionId)
   const enrichMutation = useEnrichTransaction()
+  const correctMutation = useCorrectTransaction()
+
+  const [cleanedLabel, setCleanedLabel] = useState("")
+  const [merchantName, setMerchantName] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState("other")
+  const [selectedType, setSelectedType] = useState<"expense" | "income">("expense")
+
+  useEffect(() => {
+    if (!transaction) return
+
+    setCleanedLabel(transaction.cleaned_label || transaction.raw_label)
+    setMerchantName(transaction.merchant_name || "")
+    setSelectedCategory(transaction.category || "other")
+    setSelectedType(transaction.is_expense ? "expense" : "income")
+  }, [transaction])
 
   const handleEnrich = async () => {
     if (!transaction) return
-    
-    try {
-      await enrichMutation.mutateAsync(transaction.id)
-      toast.success("Transaction enrichie avec succès")
-    } catch (error) {
-      // L'erreur est déjà gérée dans le hook
-    }
+    await enrichMutation.mutateAsync(transaction.id)
+  }
+
+  const handleCorrectionSave = async () => {
+    if (!transaction) return
+
+    await correctMutation.mutateAsync({
+      transactionId: transaction.id,
+      payload: {
+        cleaned_label: cleanedLabel.trim(),
+        merchant_name: merchantName.trim() || null,
+        category: selectedCategory,
+        is_expense: selectedType === "expense",
+      },
+    })
   }
 
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
+        <div className="flex h-64 items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       </DashboardLayout>
@@ -51,9 +96,7 @@ export default function TransactionDetailPage() {
           </Button>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground">
-                {error?.message || "Transaction non trouvée"}
-              </p>
+              <p className="text-muted-foreground">{error?.message || "Transaction non trouvée"}</p>
             </CardContent>
           </Card>
         </div>
@@ -65,7 +108,6 @@ export default function TransactionDetailPage() {
     <QueryErrorBoundary>
       <DashboardLayout>
         <div className="space-y-6">
-          {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="ghost" onClick={() => router.back()}>
@@ -74,19 +116,13 @@ export default function TransactionDetailPage() {
               </Button>
               <h1 className="text-2xl font-bold">Détail de la transaction</h1>
             </div>
-            <Button 
-              onClick={handleEnrich}
-              disabled={enrichMutation.isPending}
-              className="gap-2"
-            >
+            <Button onClick={handleEnrich} disabled={enrichMutation.isPending} className="gap-2">
               <Brain className="h-4 w-4" />
               {enrichMutation.isPending ? "Enrichissement..." : "Enrichir"}
             </Button>
           </div>
 
-          {/* Transaction Details */}
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Main Info */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -99,21 +135,22 @@ export default function TransactionDetailPage() {
                   <p className="text-sm font-medium text-muted-foreground">Libellé</p>
                   <p className="text-base">{transaction.cleaned_label || transaction.raw_label}</p>
                   {transaction.cleaned_label && transaction.cleaned_label !== transaction.raw_label && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Original: {transaction.raw_label}
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">Original: {transaction.raw_label}</p>
                   )}
                 </div>
-                
+
                 <Separator />
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Montant</p>
-                    <p className={`text-lg font-bold ${
-                      transaction.is_expense ? "text-red-600" : "text-green-600"
-                    }`}>
-                      {transaction.is_expense ? "-" : "+"}{formatCurrency(transaction.amount)}
+                    <p
+                      className={`text-lg font-bold ${
+                        transaction.is_expense ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {transaction.is_expense ? "-" : "+"}
+                      {formatCurrency(transaction.amount)}
                     </p>
                   </div>
                   <div>
@@ -154,48 +191,73 @@ export default function TransactionDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Additional Info */}
             <Card>
               <CardHeader>
-                <CardTitle>Informations supplémentaires</CardTitle>
+                <CardTitle>Correction & apprentissage</CardTitle>
                 <CardDescription>
-                  ID: {transaction.id}
+                  Corrigez les champs puis enregistrez pour entraîner les futurs enrichissements.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Statut</p>
-                  <div className="mt-1">
-                    {transaction.cleaned_label ? (
-                      <Badge variant="default">Enrichie</Badge>
-                    ) : (
-                      <Badge variant="outline">Non enrichie</Badge>
-                    )}
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cleanedLabel">Libellé corrigé</Label>
+                  <Input
+                    id="cleanedLabel"
+                    value={cleanedLabel}
+                    onChange={(event) => setCleanedLabel(event.target.value)}
+                    placeholder="Ex: Netflix"
+                  />
                 </div>
 
-                {transaction.is_recurring && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Fréquence</p>
-                    <p className="text-sm">Récurrente</p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Actions</p>
-                  <div className="mt-2 space-y-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={handleEnrich}
-                      disabled={enrichMutation.isPending}
-                    >
-                      <Brain className="mr-2 h-4 w-4" />
-                      {enrichMutation.isPending ? "Enrichissement..." : "Enrichir avec l'IA"}
-                    </Button>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="merchantName">Marchand</Label>
+                  <Input
+                    id="merchantName"
+                    value={merchantName}
+                    onChange={(event) => setMerchantName(event.target.value)}
+                    placeholder="Ex: Netflix"
+                  />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Catégorie</Label>
+                  <select
+                    id="category"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={selectedCategory}
+                    onChange={(event) => setSelectedCategory(event.target.value)}
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="transactionType">Type</Label>
+                  <select
+                    id="transactionType"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={selectedType}
+                    onChange={(event) =>
+                      setSelectedType(event.target.value === "income" ? "income" : "expense")
+                    }
+                  >
+                    <option value="expense">Dépense</option>
+                    <option value="income">Revenu</option>
+                  </select>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleCorrectionSave}
+                  disabled={correctMutation.isPending || !cleanedLabel.trim()}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {correctMutation.isPending ? "Enregistrement..." : "Enregistrer la correction"}
+                </Button>
               </CardContent>
             </Card>
           </div>
