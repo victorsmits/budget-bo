@@ -12,16 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
 import { Separator } from "@/components/ui/separator"
-import {
-  useCorrectTransaction,
-  useEnrichTransaction,
-  useTransaction,
-} from "@/hooks/api/useTransactions"
-import {
-  getCategoryLabel,
-  getTransactionDisplayLabel,
-  TRANSACTION_CATEGORY_OPTIONS,
-} from "@/lib/transaction-presentation"
+import { useCorrectTransaction, useEnrichTransaction, useTransaction } from "@/hooks/api/useTransactions"
+import { getCategoryLabel, getTransactionDisplayLabel, TRANSACTION_CATEGORY_OPTIONS } from "@/lib/transaction-presentation"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
 export default function TransactionDetailPage() {
@@ -40,16 +32,13 @@ export default function TransactionDetailPage() {
 
   useEffect(() => {
     if (!transaction) return
-
     setCleanedLabel(transaction.cleaned_label || transaction.merchant_name || "")
     setMerchantName(transaction.merchant_name || "")
     setSelectedCategory(transaction.category || "other")
     setSelectedType(transaction.is_expense ? "expense" : "income")
   }, [transaction])
 
-  const displayLabel = useMemo(() => {
-    return transaction ? getTransactionDisplayLabel(transaction) : ""
-  }, [transaction])
+  const displayLabel = useMemo(() => (transaction ? getTransactionDisplayLabel(transaction) : ""), [transaction])
 
   const handleEnrich = async () => {
     if (!transaction) return
@@ -73,9 +62,7 @@ export default function TransactionDetailPage() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+        <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
       </DashboardLayout>
     )
   }
@@ -83,17 +70,7 @@ export default function TransactionDetailPage() {
   if (error || !transaction) {
     return (
       <DashboardLayout>
-        <div className="space-y-4">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour
-          </Button>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground">{error?.message || "Transaction non trouvée"}</p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card><CardContent className="p-6"><p>{error?.message || "Transaction non trouvée"}</p></CardContent></Card>
       </DashboardLayout>
     )
   }
@@ -102,146 +79,67 @@ export default function TransactionDetailPage() {
     <QueryErrorBoundary>
       <DashboardLayout>
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.back()}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour
-              </Button>
-              <h1 className="text-2xl font-bold">Détail de la transaction</h1>
+          <section className="glass-card rounded-3xl p-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => router.back()}><ArrowLeft className="mr-2 h-4 w-4" />Retour</Button>
+                <div>
+                  <p className="text-sm text-muted-foreground">Fiche opération</p>
+                  <h1 className="text-2xl font-semibold">{displayLabel}</h1>
+                </div>
+              </div>
+              <Button onClick={handleEnrich} disabled={enrichMutation.isPending}><Brain className="mr-2 h-4 w-4" />{enrichMutation.isPending ? "Enrichissement..." : "Relancer l'IA"}</Button>
             </div>
-            <Button onClick={handleEnrich} disabled={enrichMutation.isPending} className="gap-2">
-              <Brain className="h-4 w-4" />
-              {enrichMutation.isPending ? "Enrichissement..." : "Enrichir"}
-            </Button>
-          </div>
+          </section>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
+          <div className="grid gap-4 xl:grid-cols-5">
+            <Card className="xl:col-span-2 rounded-3xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Informations
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" />Données de transaction</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Libellé</p>
-                  <p className="text-base">{displayLabel}</p>
-                  {displayLabel !== transaction.raw_label && (
-                    <p className="mt-1 text-sm text-muted-foreground">Original: {transaction.raw_label}</p>
-                  )}
+                  <p className="text-sm text-muted-foreground">Montant</p>
+                  <p className={`text-2xl font-semibold ${transaction.is_expense ? "text-red-600" : "text-green-600"}`}>{transaction.is_expense ? "-" : "+"}{formatCurrency(transaction.amount)}</p>
                 </div>
-
                 <Separator />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Montant</p>
-                    <p className={`text-lg font-bold ${transaction.is_expense ? "text-red-600" : "text-green-600"}`}>
-                      {transaction.is_expense ? "-" : "+"}
-                      {formatCurrency(transaction.amount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Type</p>
-                    <Badge variant={transaction.is_expense ? "destructive" : "default"}>
-                      {transaction.is_expense ? "Dépense" : "Revenu"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Date</p>
-                    <p className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {formatDate(transaction.date)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Catégorie</p>
-                    <p className="flex items-center gap-1">
-                      <Tag className="h-4 w-4" />
-                      {getCategoryLabel(transaction.category || "other")}
-                    </p>
-                  </div>
-                </div>
-
-                {transaction.is_recurring && (
-                  <>
-                    <Separator />
-                    <Badge variant="secondary">Transaction récurrente</Badge>
-                  </>
-                )}
+                <p className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4" />{formatDate(transaction.date)}</p>
+                <p className="flex items-center gap-2 text-sm"><Tag className="h-4 w-4" />{getCategoryLabel(transaction.category || "other")}</p>
+                <Badge variant={transaction.is_expense ? "destructive" : "default"}>{transaction.is_expense ? "Dépense" : "Revenu"}</Badge>
+                {displayLabel !== transaction.raw_label && <p className="text-xs text-muted-foreground">Libellé brut: {transaction.raw_label}</p>}
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="xl:col-span-3 rounded-3xl">
               <CardHeader>
                 <CardTitle>Correction & apprentissage</CardTitle>
-                <CardDescription>
-                  Corrigez les champs puis enregistrez pour entraîner les futurs enrichissements.
-                </CardDescription>
+                <CardDescription>Modifiez les champs pour améliorer les futurs enrichissements.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="cleanedLabel">Libellé corrigé</Label>
-                  <Input
-                    id="cleanedLabel"
-                    value={cleanedLabel}
-                    onChange={(event) => setCleanedLabel(event.target.value)}
-                    placeholder="Ex: Netflix"
-                  />
+                  <Input id="cleanedLabel" value={cleanedLabel} onChange={(event) => setCleanedLabel(event.target.value)} />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="merchantName">Marchand</Label>
-                  <Input
-                    id="merchantName"
-                    value={merchantName}
-                    onChange={(event) => setMerchantName(event.target.value)}
-                    placeholder="Ex: Netflix"
-                  />
+                  <Input id="merchantName" value={merchantName} onChange={(event) => setMerchantName(event.target.value)} />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="category">Catégorie</Label>
-                  <select
-                    id="category"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={selectedCategory}
-                    onChange={(event) => setSelectedCategory(event.target.value)}
-                  >
-                    {TRANSACTION_CATEGORY_OPTIONS.map((category) => (
-                      <option key={category} value={category}>
-                        {getCategoryLabel(category)}
-                      </option>
-                    ))}
+                  <select id="category" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm" value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
+                    {TRANSACTION_CATEGORY_OPTIONS.map((category) => <option key={category} value={category}>{getCategoryLabel(category)}</option>)}
                   </select>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="transactionType">Type</Label>
-                  <select
-                    id="transactionType"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={selectedType}
-                    onChange={(event) =>
-                      setSelectedType(event.target.value === "income" ? "income" : "expense")
-                    }
-                  >
+                  <select id="transactionType" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm" value={selectedType} onChange={(event) => setSelectedType(event.target.value === "income" ? "income" : "expense")}>
                     <option value="expense">Dépense</option>
                     <option value="income">Revenu</option>
                   </select>
                 </div>
-
-                <Button className="w-full" onClick={handleCorrectionSave} disabled={correctMutation.isPending}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {correctMutation.isPending ? "Enregistrement..." : "Enregistrer la correction"}
-                </Button>
+                <div className="md:col-span-2">
+                  <Button className="w-full" onClick={handleCorrectionSave} disabled={correctMutation.isPending}><Save className="mr-2 h-4 w-4" />{correctMutation.isPending ? "Enregistrement..." : "Enregistrer la correction"}</Button>
+                </div>
               </CardContent>
             </Card>
           </div>

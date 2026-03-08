@@ -1,6 +1,26 @@
 "use client"
 
+import { useMemo } from "react"
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CreditCard,
+  Loader2,
+  Repeat,
+  Sparkles,
+  Wallet,
+} from "lucide-react"
+
 import DashboardLayout from "./dashboard-layout"
+import { useDashboardData } from "@/hooks/api"
+import { useBankAccountsSummary } from "@/hooks/api/useAccounts"
+import { DashboardSkeleton } from "@/components/loading"
+import { ErrorCard } from "@/components/error"
+import { AuthErrorHandler } from "@/components/auth/auth-error-handler"
+import { TransactionCard } from "@/components/transactions/transaction-card"
+import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -8,26 +28,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
-import {
-  ArrowUpRight,
-  ArrowDownRight,
-  Wallet,
-  Repeat,
-  CreditCard,
-  Loader2,
-} from "lucide-react"
-import { useDashboardData } from "@/hooks/api"
-import { useBankAccountsSummary } from "@/hooks/api/useAccounts"
-import { DashboardSkeleton } from "@/components/loading"
-import { ErrorCard } from "@/components/error"
-import { AuthErrorHandler } from "@/components/auth/auth-error-handler"
-import { TransactionCard } from "@/components/transactions/transaction-card"
-import { useMemo } from "react"
-
-// Types importés depuis @/types/api
-import type { Transaction, RecurringExpense, SummaryData } from "@/types/api"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 
 export default function DashboardPage() {
   const {
@@ -40,7 +42,8 @@ export default function DashboardPage() {
     syncCredential,
   } = useDashboardData()
 
-  const { data: accountsSummary, isLoading: isLoadingAccounts } = useBankAccountsSummary()
+  const { data: accountsSummary, isLoading: isLoadingAccounts } =
+    useBankAccountsSummary()
 
   const handleSync = async () => {
     if (credentials && credentials.length > 0) {
@@ -49,53 +52,52 @@ export default function DashboardPage() {
   }
 
   const stats = useMemo(() => {
-    // Use real bank balance if available, otherwise fall back to calculated net
     const realBalance = accountsSummary?.total_balance
-    const displayBalance = realBalance !== undefined 
-      ? realBalance.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
-      : summary?.net !== undefined
-        ? summary.net.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
-        : "0 €"
+    const net = summary?.net ?? 0
+    const displayBalance =
+      realBalance !== undefined
+        ? realBalance
+        : net
 
     return [
       {
-        title: "Solde réel",
-        value: displayBalance,
-        change: realBalance !== undefined ? "Solde bancaire" : "Calculé",
-        trend: (realBalance ?? summary?.net ?? 0) >= 0 ? "up" : "down",
+        title: "Solde actuel",
+        value: formatCurrency(displayBalance),
+        helper: realBalance !== undefined ? "Donnée bancaire" : "Donnée calculée",
         icon: Wallet,
       },
       {
-        title: "Dépenses ce mois",
-        value: summary?.total_expenses ? summary.total_expenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
-        change: "",
-        trend: "down",
+        title: "Dépenses du mois",
+        value: formatCurrency(summary?.total_expenses ?? 0),
+        helper: "Sorties cumulées",
         icon: ArrowDownRight,
       },
       {
-        title: "Revenus ce mois",
-        value: summary?.total_income ? summary.total_income.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
-        change: "",
-        trend: "up",
+        title: "Revenus du mois",
+        value: formatCurrency(summary?.total_income ?? 0),
+        helper: "Entrées cumulées",
         icon: ArrowUpRight,
       },
       {
-        title: "Transactions",
-        value: recentTransactions?.length.toString() ?? "0",
-        change: "",
-        trend: "neutral",
+        title: "Mouvements récents",
+        value: String(recentTransactions?.length ?? 0),
+        helper: "5 dernières opérations",
         icon: CreditCard,
       },
     ]
   }, [summary, recentTransactions, accountsSummary])
 
-  const calculateDaysLeft = (dateString: string | null) => {
-    if (!dateString) return null
-    const target = new Date(dateString)
-    const today = new Date()
-    const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return Math.max(0, diff)
-  }
+  const budgetHealth = useMemo(() => {
+    const income = summary?.total_income ?? 0
+    const expenses = summary?.total_expenses ?? 0
+
+    if (income <= 0) {
+      return 0
+    }
+
+    const remainingPercent = ((income - expenses) / income) * 100
+    return Math.max(0, Math.min(100, Math.round(remainingPercent)))
+  }, [summary])
 
   if (isLoading || isLoadingAccounts) {
     return (
@@ -108,8 +110,8 @@ export default function DashboardPage() {
   if (error) {
     return (
       <DashboardLayout>
-        <ErrorCard 
-          title="Erreur de chargement" 
+        <ErrorCard
+          title="Erreur de chargement"
           description={error.message}
           retry={() => window.location.reload()}
         />
@@ -120,8 +122,8 @@ export default function DashboardPage() {
   if (!summary) {
     return (
       <DashboardLayout>
-        <ErrorCard 
-          title="Aucune donnée" 
+        <ErrorCard
+          title="Aucune donnée"
           description="Aucune transaction trouvée. Ajoutez un compte bancaire pour commencer."
         />
       </DashboardLayout>
@@ -132,149 +134,199 @@ export default function DashboardPage() {
     <QueryErrorBoundary>
       <DashboardLayout>
         <AuthErrorHandler error={error || undefined} />
-        <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Vue d&apos;ensemble de vos finances {summary ? `(${summary.period.start} → ${summary.period.end})` : ""}
-            </p>
-          </div>
-            <Button 
-              onClick={handleSync} 
-              disabled={syncCredential.isPending || !credentials?.length}
-            >
-              {syncCredential.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Synchronisation...
-                </>
-              ) : (
-                <>
-                  <Repeat className="mr-2 h-4 w-4" />
-                  Sync Bancaire
-                </>
-              )}
-            </Button>
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon
-            const TrendIcon = stat.trend === "up" ? ArrowUpRight : ArrowDownRight
-            const trendColor = stat.trend === "up" ? "text-green-600" : stat.trend === "down" ? "text-red-600" : "text-gray-600"
-
-            return (
-              <Card key={stat.title}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {stat.title}
-                  </CardTitle>
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  {stat.change && (
-                    <p className={cn("text-xs", trendColor)}>
-                      <TrendIcon className="mr-1 inline h-3 w-3" />
-                      {stat.change}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="lg:col-span-4">
-            <CardHeader>
-              <CardTitle>Dépenses par catégorie</CardTitle>
-              <CardDescription>Répartition ce mois</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {summary?.by_category?.length === 0 ? (
-                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                  Aucune dépense ce mois
+        <div className="space-y-6">
+          <Card className="border-none bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 text-white shadow-xl">
+            <CardContent className="p-6 md:p-8">
+              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-2">
+                  <Badge className="bg-white/15 text-white hover:bg-white/20">
+                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                    Nouvelle interface
+                  </Badge>
+                  <h1 className="text-2xl font-semibold md:text-3xl">Tableau de bord financier</h1>
+                  <p className="text-sm text-slate-200">
+                    Suivi en temps réel de vos flux • Période du {summary.period.start} au {summary.period.end}
+                  </p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {summary?.by_category?.map((cat: { category: string; count: number; total: number }) => (
-                    <div key={cat.category} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full bg-primary" />
-                        <span className="text-sm">{cat.category}</span>
-                        <span className="text-xs text-muted-foreground">({cat.count})</span>
-                      </div>
-                      <span className="font-medium text-red-600">
-                        -{cat.total.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                      </span>
-                    </div>
-                  ))}
+
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                  <span className="text-xs uppercase tracking-[0.2em] text-slate-300">Solde disponible</span>
+                  <p className="text-3xl font-bold">{stats[0].value}</p>
+                  <Button
+                    variant="secondary"
+                    onClick={handleSync}
+                    disabled={syncCredential.isPending || !credentials?.length}
+                  >
+                    {syncCredential.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Synchronisation...
+                      </>
+                    ) : (
+                      <>
+                        <Repeat className="mr-2 h-4 w-4" />
+                        Synchroniser mes comptes
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Prochains paiements</CardTitle>
-              <CardDescription>Dépenses récurrentes à venir</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!upcomingRecurring || upcomingRecurring.length === 0 ? (
-                <div className="text-muted-foreground text-sm">
-                  Aucune dépense récurrente à venir
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {upcomingRecurring?.slice(0, 5).map((item) => {
-                    const daysLeft = calculateDaysLeft(item.next_expected_date)
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {stats.map((stat) => {
+              const Icon = stat.icon
+              return (
+                <Card key={stat.title} className="border-slate-200/80">
+                  <CardHeader className="pb-3">
+                    <CardDescription>{stat.title}</CardDescription>
+                    <CardTitle className="text-2xl">{stat.value}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between pt-0">
+                    <span className="text-xs text-muted-foreground">{stat.helper}</span>
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Répartition des dépenses</CardTitle>
+                <CardDescription>Catégories les plus actives ce mois-ci</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {summary.by_category.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune dépense enregistrée pour cette période.</p>
+                ) : (
+                  summary.by_category.map((cat: { category: string; count: number; total: number }) => {
+                    const ratio = summary.total_expenses
+                      ? Math.round((cat.total / summary.total_expenses) * 100)
+                      : 0
+
                     return (
-                      <div key={item.id} className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">{item.pattern_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {daysLeft === null ? "Date inconnue" : daysLeft === 0 ? "Aujourd'hui" : `Dans ${daysLeft} jour${daysLeft > 1 ? "s" : ""}`}
-                          </p>
+                      <div key={cat.category} className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{cat.category}</span>
+                            <Badge variant="secondary">{cat.count} ops</Badge>
+                          </div>
+                          <span className="font-semibold text-red-600">
+                            -{formatCurrency(cat.total)}
+                          </span>
                         </div>
-                        <div className="font-medium text-red-600">
-                          -{Number(item.average_amount).toFixed(2)} €
-                        </div>
+                        <Progress value={ratio} />
                       </div>
                     )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  })
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Transactions récentes</CardTitle>
-            <CardDescription>Les 5 dernières opérations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!recentTransactions || recentTransactions.length === 0 ? (
-              <div className="text-muted-foreground text-sm">
-                Aucune transaction. Lancez une synchronisation bancaire.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {recentTransactions?.map((tx) => (
-                  <TransactionCard key={tx.id} transaction={tx} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Santé budgétaire</CardTitle>
+                <CardDescription>Part de revenu encore disponible</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="mb-2 flex items-end justify-between">
+                    <span className="text-sm text-muted-foreground">Reste à vivre</span>
+                    <span className="text-xl font-semibold">{budgetHealth}%</span>
+                  </div>
+                  <Progress value={budgetHealth} />
+                </div>
+                <Separator />
+                <div className="space-y-2 text-sm">
+                  <p className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Revenus</span>
+                    <span className="font-medium text-green-600">+{formatCurrency(summary.total_income)}</span>
+                  </p>
+                  <p className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Dépenses</span>
+                    <span className="font-medium text-red-600">-{formatCurrency(summary.total_expenses)}</span>
+                  </p>
+                  <p className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Solde net</span>
+                    <span className="font-medium">{formatCurrency(summary.net)}</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-5">
+            <Card className="xl:col-span-2">
+              <CardHeader>
+                <CardTitle>Prochains paiements</CardTitle>
+                <CardDescription>Récurrences à surveiller</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {!upcomingRecurring || upcomingRecurring.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucun paiement récurrent détecté.</p>
+                ) : (
+                  upcomingRecurring.slice(0, 5).map((item) => {
+                    const daysLeft = calculateDaysLeft(item.next_expected_date)
+                    return (
+                      <div key={item.id} className="rounded-lg border p-3">
+                        <p className="font-medium">{item.pattern_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {daysLeft === null
+                            ? "Date inconnue"
+                            : daysLeft === 0
+                              ? "Prévu aujourd'hui"
+                              : `Prévu dans ${daysLeft} jour${daysLeft > 1 ? "s" : ""}`}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-red-600">
+                          -{formatCurrency(Number(item.average_amount))}
+                        </p>
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="xl:col-span-3">
+              <CardHeader>
+                <CardTitle>Transactions récentes</CardTitle>
+                <CardDescription>Historique des dernières opérations synchronisées</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!recentTransactions || recentTransactions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Aucune transaction. Lancez une synchronisation bancaire.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {recentTransactions.map((tx) => (
+                      <TransactionCard key={tx.id} transaction={tx} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </div>
       </DashboardLayout>
     </QueryErrorBoundary>
   )
 }
 
-function cn(...classes: (string | undefined | false)[]) {
-  return classes.filter(Boolean).join(" ")
+function calculateDaysLeft(dateString: string | null) {
+  if (!dateString) return null
+
+  const target = new Date(dateString)
+  const today = new Date()
+  const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+  return Math.max(0, diff)
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
 }
