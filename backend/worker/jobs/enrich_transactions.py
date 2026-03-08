@@ -80,11 +80,13 @@ def enrich_single_transaction(
                     and normalized_category in {"other", "shopping", "income"}
                 )
 
+                signed_amount = -float(tx.amount) if tx.is_expense else float(tx.amount)
+
                 categorization: dict[str, Any] = {}
                 if needs_llm_categorization:
                     categorization = ollama_service.categorize_transaction(
                         label=tx.cleaned_label,
-                        amount=float(tx.amount),
+                        amount=signed_amount,
                         merchant_hint=tx.merchant_name,
                     )
 
@@ -112,7 +114,7 @@ def enrich_single_transaction(
                     "reasoning",
                     "Category inferred from normalization/rules",
                 )
-                tx.is_expense = bool(categorization.get("is_expense", tx.amount < 0))
+                tx.is_expense = bool(categorization.get("is_expense", tx.is_expense))
                 tx.category = _map_category(str(selected_category))
                 tx.enriched_at = datetime.utcnow()
                 upsert_rule_from_transaction(session, tx)
