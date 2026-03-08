@@ -199,7 +199,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {summary?.by_category?.map((cat) => (
+                  {summary?.by_category?.map((cat: { category: string; count: number; total: number }) => (
                     <div key={cat.category} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-primary" />
