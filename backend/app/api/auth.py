@@ -69,7 +69,7 @@ async def test_login(
         value=session_token,
         httponly=True,
         secure=False,
-        samesite="none" if not settings.is_production else "lax",
+        samesite="lax",
         max_age=86400 * 7,
     )
 
@@ -149,13 +149,13 @@ async def auth_callback(
     # Create session cookie
     session_token = encryption.encrypt(str(user.id))
 
-    response = RedirectResponse(url=f"{settings.frontend_url}/dashboard")
+    response = RedirectResponse(url=settings.frontend_url)
     response.set_cookie(
         key="session",
         value=session_token,
         httponly=True,
         secure=settings.is_production,
-        samesite="none" if not settings.is_production else "lax",
+        samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
 
@@ -167,7 +167,7 @@ async def logout(response: Response) -> dict[str, str]:
     """Logout and clear session cookie."""
     response.delete_cookie(
         key="session",
-        samesite="none" if not settings.is_production else "lax",
+        samesite="lax",
         secure=settings.is_production,
     )
     return {"message": "Logged out successfully"}
