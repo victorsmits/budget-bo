@@ -18,21 +18,11 @@ export interface Transaction {
   id: string
   cleaned_label: string | null
   raw_label: string
-  merchant_name?: string | null
   amount: number
   date: string
   category: string
   is_expense: boolean
   is_recurring: boolean
-  currency?: string
-  ai_confidence?: number | null
-}
-
-export interface TransactionCorrectionPayload {
-  cleaned_label?: string | null
-  merchant_name?: string | null
-  category?: string
-  is_expense?: boolean
 }
 
 // Types pour les dépenses récurrentes
