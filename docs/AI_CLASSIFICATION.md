@@ -42,6 +42,8 @@ Les nouvelles transactions sont automatiquement enrichies lors de la synchronisa
 
 Le prompt IA force désormais la vérification via recherche web (`web_search`) dès que le marchand est ambigu ou peu connu, afin d'obtenir un nom d'enseigne plus fiable et une meilleure catégorie métier.
 
+Le worker limite aussi le nombre de tours d'outil et n'appelle la seconde étape de catégorisation IA que si nécessaire, pour réduire les timeouts (`/api/chat` 500) et garder un enrichissement robuste même si Ollama est lent.
+
 La catégorie `income` est désormais appliquée uniquement en présence d'indices explicites (salaire, paie, remboursement, allocation, etc.) et non pas simplement parce que le montant est positif.
 
 ### Enrichissement manuel

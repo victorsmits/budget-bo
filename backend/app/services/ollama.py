@@ -87,7 +87,10 @@ class OllamaService:
 
     def __init__(self, host: str | None = None, model: str | None = None) -> None:
         self.model = model or settings.ollama_model
-        self.client = ollama.Client(host=host or settings.ollama_base_url)
+        self.client = ollama.Client(
+            host=host or settings.ollama_base_url,
+            timeout=max(10, settings.ollama_timeout),
+        )
 
     # ------------------------------------------------------------------
     # Core: agentic loop with tool calling (sync)
@@ -105,16 +108,20 @@ class OllamaService:
         2. Si le modèle appelle un outil → exécute → renvoie le résultat → boucle
         3. Retourne la réponse finale en texte
         """
-        options = {"temperature": temperature, "num_predict": 512}
+        options = {"temperature": temperature, "num_predict": 256}
 
-        for _ in range(5):  # max 5 tool-call rounds
-            response = self.client.chat(
-                model=self.model,
-                messages=messages,
-                tools=tools or [],
-                format="json",
-                options=options,
-            )
+        for _ in range(3):  # max 3 tool-call rounds to keep latency bounded
+            try:
+                response = self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or [],
+                    format="json",
+                    options=options,
+                )
+            except Exception:
+                return "{}"
+
             message = response.message
 
             # Model wants to call a tool

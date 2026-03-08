@@ -68,24 +68,37 @@ def enrich_single_transaction(
                 tx.cleaned_label = normalization.get("cleaned_label", raw_label)
                 tx.merchant_name = normalized_merchant
 
-                categorization = ollama_service.categorize_transaction(
-                    label=tx.cleaned_label,
-                    amount=float(tx.amount),
-                    merchant_hint=tx.merchant_name,
-                )
-
                 rule_based_category = infer_category_from_text(
                     label=tx.cleaned_label,
                     merchant=tx.merchant_name or "",
                     amount=float(tx.amount),
                 )
-                selected_category = rule_based_category or categorization.get("category") or normalization.get("category")
+                normalized_category = str(normalization.get("category", "other")).lower()
+
+                needs_llm_categorization = (
+                    rule_based_category is None
+                    and normalized_category in {"other", "shopping", "income"}
+                )
+
+                categorization: dict[str, Any] = {}
+                if needs_llm_categorization:
+                    categorization = ollama_service.categorize_transaction(
+                        label=tx.cleaned_label,
+                        amount=float(tx.amount),
+                        merchant_hint=tx.merchant_name,
+                    )
+
+                selected_category = (
+                    rule_based_category
+                    or categorization.get("category")
+                    or normalization.get("category")
+                )
 
                 if str(selected_category) == "income" and not has_explicit_income_signal(
                     tx.cleaned_label,
                     tx.merchant_name or "",
                 ):
-                    fallback_category = rule_based_category or normalization.get("category")
+                    fallback_category = rule_based_category or normalized_category
                     if fallback_category and str(fallback_category) != "income":
                         selected_category = fallback_category
                     else:
@@ -95,7 +108,10 @@ def enrich_single_transaction(
                     float(normalization.get("confidence", 0.0)),
                     float(categorization.get("confidence", 0.0)),
                 )
-                tx.ai_category_reasoning = categorization.get("reasoning", "")
+                tx.ai_category_reasoning = categorization.get(
+                    "reasoning",
+                    "Category inferred from normalization/rules",
+                )
                 tx.is_expense = bool(categorization.get("is_expense", tx.amount < 0))
                 tx.category = _map_category(str(selected_category))
                 tx.enriched_at = datetime.utcnow()
