@@ -3,13 +3,16 @@
 import json
 from typing import Any
 
+import httpx
 import ollama
+from duckduckgo_search import DDGS
 
 from app.core.config import get_settings
 from app.services.ai_constants import VALID_CATEGORIES
 from app.services.ollama_prompts import (
     build_normalization_system_prompt,
     build_normalization_user_prompt,
+    build_public_merchant_resolution_prompt,
 )
 
 settings = get_settings()
@@ -45,20 +48,38 @@ WEB_SEARCH_TOOL = {
 # ---------------------------------------------------------------------------
 
 def _execute_web_search(query: str) -> str:
-    """DuckDuckGo Instant Answer — sync, no API key needed."""
-    import httpx
+    """DuckDuckGo text search with snippets, fallback to Instant Answer."""
+    snippets: list[str] = []
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, region="fr-fr", max_results=5))
+        for item in results[:5]:
+            title = str(item.get("title", "")).strip()
+            body = str(item.get("body", "")).strip()
+            href = str(item.get("href", "")).strip()
+            snippet = " - ".join(part for part in (title, body) if part)
+            if href:
+                snippet = f"{snippet} ({href})" if snippet else href
+            if snippet:
+                snippets.append(snippet[:260])
+
+        if snippets:
+            return " | ".join(snippets)
+    except Exception:
+        # Graceful fallback below
+        pass
+
     try:
         params = {"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"}
         resp = httpx.get("https://api.duckduckgo.com/", params=params, timeout=10.0)
         resp.raise_for_status()
         data = resp.json()
 
-        snippets: list[str] = []
         if data.get("AbstractText"):
-            snippets.append(data["AbstractText"][:300])
+            snippets.append(str(data["AbstractText"])[:300])
         for topic in data.get("RelatedTopics", [])[:3]:
-            if text := topic.get("Text", ""):
-                snippets.append(text[:150])
+            if text_value := topic.get("Text", ""):
+                snippets.append(str(text_value)[:160])
 
         return " | ".join(snippets) or "Aucun résultat trouvé."
     except Exception as e:
@@ -163,6 +184,36 @@ class OllamaService:
         result = _parse_json(self._chat(messages, tools=[WEB_SEARCH_TOOL]))
         return _validate_normalize(result, raw_label)
 
+    def resolve_public_merchant(
+        self,
+        raw_label: str,
+        current_merchant: str,
+    ) -> dict[str, Any]:
+        """Resolve a public-facing merchant name when the first pass looks opaque."""
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Tu es spécialiste des commerces FR. "
+                    "Tu dois identifier le nom public réel d'un commerçant à partir d'un "
+                    "libellé bancaire opaque. Réponds UNIQUEMENT en JSON valide."
+                ),
+            },
+            {
+                "role": "user",
+                "content": build_public_merchant_resolution_prompt(raw_label, current_merchant),
+            },
+        ]
+
+        result = _parse_json(self._chat(messages, tools=[WEB_SEARCH_TOOL], temperature=0.0))
+        return {
+            "merchant_name": str(result.get("merchant_name", "")).strip(),
+            "cleaned_label": str(result.get("cleaned_label", "")).strip(),
+            "category": _safe_category(result.get("category")),
+            "confidence": float(result.get("confidence", 0.0)),
+            "reasoning": str(result.get("reasoning", "")).strip(),
+        }
+
     def categorize_transaction(
         self,
         label: str,
@@ -176,7 +227,12 @@ class OllamaService:
         messages = [
             {
                 "role": "system",
-                "content": "Tu es un expert en analyse de relevés bancaires français. Tu réponds UNIQUEMENT en JSON valide. Si un marchand est ambigu ou peu connu, utilise web_search avant de catégoriser.",
+                "content": (
+                    "Tu es un expert en analyse de relevés bancaires français. "
+                    "Tu réponds UNIQUEMENT en JSON valide. "
+                    "Si un marchand est ambigu ou peu connu, utilise web_search "
+                    "avant de catégoriser."
+                ),
             },
             {
                 "role": "user",
@@ -187,7 +243,8 @@ Montant : {amount} EUR ({direction})
 {hint}Catégories valides : {", ".join(sorted(VALID_CATEGORIES))}
 
 Règles :
-- "income" UNIQUEMENT si indice explicite: salaire, paie, remboursement, allocation, virement entrant
+- "income" UNIQUEMENT si indice explicite:
+  salaire, paie, remboursement, allocation, virement entrant
 - Un montant positif seul NE SUFFIT PAS pour classer en "income"
 - Supermarchés -> "groceries"
 - Restaurants/snack/livraison repas -> "dining"
@@ -220,7 +277,10 @@ JSON attendu :
         messages = [
             {
                 "role": "system",
-                "content": "Tu es un expert en analyse de relevés bancaires. Tu réponds UNIQUEMENT en JSON valide.",
+                "content": (
+                    "Tu es un expert en analyse de relevés bancaires. "
+                    "Tu réponds UNIQUEMENT en JSON valide."
+                ),
             },
             {
                 "role": "user",
