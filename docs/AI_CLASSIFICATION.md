@@ -93,6 +93,23 @@ curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
 - `travel` - Voyage
 - `other` - Autre
 
+
+## Nouveau pipeline d'enrichissement (fiabilité renforcée)
+
+Le pipeline a été refondu pour s'inspirer des pratiques fintech (priorité à la précision et à la traçabilité) :
+
+1. **Mémoire utilisateur d'abord** : si une règle d'apprentissage existe, elle est appliquée directement (confiance maximale).
+2. **Passage LLM #1 (normalisation)** : extraction du `cleaned_label`, du `merchant_name` et d'une catégorie initiale.
+3. **Garde-fous déterministes** :
+   - normalisation du marchand côté consommateur (suppression des suffixes légaux),
+   - catégorisation heuristique (mots-clés métier),
+   - protection anti-faux-positifs `income` (signal explicite obligatoire).
+4. **Passage LLM #2 conditionnel (catégorisation)** : déclenché uniquement quand la catégorie reste ambiguë (`other` / `shopping` / `income` sans signal fort).
+5. **Calibration de confiance** : score final calculé à partir du consensus entre heuristiques + LLM, pénalisé en cas d'ambiguïté.
+6. **Reasoning structuré** : la transaction conserve une trace de la provenance de la décision (`llm_normalization`, `heuristic`, `llm_categorization`).
+
+Cette approche réduit les hallucinations, améliore la stabilité sur les cas connus et permet d'isoler les cas réellement ambigus.
+
 ## Monitoring
 
 ### Vérifier l'état des transactions
