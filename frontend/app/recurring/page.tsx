@@ -5,6 +5,7 @@ import DashboardLayout from "../dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { CategoryBadge } from "@/components/transactions/category-badge"
 import { Calendar, Repeat, TrendingUp, AlertCircle, Play, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -29,26 +30,6 @@ const patternLabels: Record<string, string> = {
   quarterly: "Trimestriel",
   annually: "Annuel",
   daily: "Quotidien",
-}
-
-const categoryColors: Record<string, string> = {
-  housing: "bg-blue-100 text-blue-700",
-  subscriptions: "bg-purple-100 text-purple-700",
-  utilities: "bg-yellow-100 text-yellow-700",
-  insurance: "bg-orange-100 text-orange-700",
-  food: "bg-green-100 text-green-700",
-  transportation: "bg-pink-100 text-pink-700",
-  other: "bg-gray-100 text-gray-700",
-}
-
-const categoryLabels: Record<string, string> = {
-  housing: "Logement",
-  subscriptions: "Abonnements",
-  utilities: "Factures",
-  insurance: "Assurance",
-  food: "Alimentation",
-  transportation: "Transport",
-  other: "Autre",
 }
 
 export default function RecurringPage() {
@@ -195,15 +176,13 @@ export default function RecurringPage() {
                     return (
                       <div key={expense.id} className="flex items-center justify-between p-4 rounded-lg border">
                         <div className="flex items-center gap-4">
-                          <div className={cn("h-10 w-10 rounded-full flex items-center justify-center", categoryColors[expense.category || "other"] || categoryColors.other)}>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                             <Repeat className="h-5 w-5" />
                           </div>
                           <div>
                             <p className="font-medium">{expense.pattern_name}</p>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Badge variant="secondary" className={categoryColors[expense.category || "other"] || categoryColors.other}>
-                                {categoryLabels[expense.category || "other"] || expense.category}
-                              </Badge>
+                              <CategoryBadge category={expense.category || "other"} />
                               <span>•</span>
                               <span>{patternLabels[expense.pattern_type || "monthly"] || expense.pattern_type || "Mensuel"}</span>
                             </div>
@@ -279,6 +258,3 @@ export default function RecurringPage() {
   )
 }
 
-function cn(...classes: (string | undefined | false)[]) {
-  return classes.filter(Boolean).join(" ")
-}

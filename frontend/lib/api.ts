@@ -1,3 +1,5 @@
+import { TransactionCorrectionPayload } from "@/types/api"
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface FetchOptions extends RequestInit {
@@ -61,6 +63,8 @@ export const api = {
     getById: (id: string) => apiClient(`/transactions/${id}`),
     summary: () => apiClient("/transactions/summary"),
     enrich: (id: string) => apiClient(`/transactions/${id}/enrich`, { method: "POST" }),
+    correct: (id: string, payload: TransactionCorrectionPayload) =>
+      apiClient(`/transactions/${id}/correction`, { method: "PATCH", body: JSON.stringify(payload) }),
   },
 
   // Recurring
