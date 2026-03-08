@@ -19,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { useDashboardData } from "@/hooks/api"
+import { useBankAccountsSummary } from "@/hooks/api/useAccounts"
 import { DashboardSkeleton } from "@/components/loading"
 import { ErrorCard } from "@/components/error"
 import { AuthErrorHandler } from "@/components/auth/auth-error-handler"
@@ -39,42 +40,54 @@ export default function DashboardPage() {
     syncCredential,
   } = useDashboardData()
 
+  const { data: accountsSummary, isLoading: isLoadingAccounts } = useBankAccountsSummary()
+
   const handleSync = async () => {
     if (credentials && credentials.length > 0) {
       syncCredential.mutate(credentials[0].id)
     }
   }
 
-  const stats = useMemo(() => [
-    {
-      title: "Solde net",
-      value: summary?.net ? summary.net.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
-      change: "",
-      trend: (summary?.net ?? 0) >= 0 ? "up" : "down",
-      icon: Wallet,
-    },
-    {
-      title: "Dépenses ce mois",
-      value: summary?.total_expenses ? summary.total_expenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
-      change: "",
-      trend: "down",
-      icon: ArrowDownRight,
-    },
-    {
-      title: "Revenus ce mois",
-      value: summary?.total_income ? summary.total_income.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
-      change: "",
-      trend: "up",
-      icon: ArrowUpRight,
-    },
-    {
-      title: "Transactions",
-      value: recentTransactions?.length.toString() ?? "0",
-      change: "",
-      trend: "neutral",
-      icon: CreditCard,
-    },
-  ], [summary, recentTransactions])
+  const stats = useMemo(() => {
+    // Use real bank balance if available, otherwise fall back to calculated net
+    const realBalance = accountsSummary?.total_balance
+    const displayBalance = realBalance !== undefined 
+      ? realBalance.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+      : summary?.net !== undefined
+        ? summary.net.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+        : "0 €"
+
+    return [
+      {
+        title: "Solde réel",
+        value: displayBalance,
+        change: realBalance !== undefined ? "Solde bancaire" : "Calculé",
+        trend: (realBalance ?? summary?.net ?? 0) >= 0 ? "up" : "down",
+        icon: Wallet,
+      },
+      {
+        title: "Dépenses ce mois",
+        value: summary?.total_expenses ? summary.total_expenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
+        change: "",
+        trend: "down",
+        icon: ArrowDownRight,
+      },
+      {
+        title: "Revenus ce mois",
+        value: summary?.total_income ? summary.total_income.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "0 €",
+        change: "",
+        trend: "up",
+        icon: ArrowUpRight,
+      },
+      {
+        title: "Transactions",
+        value: recentTransactions?.length.toString() ?? "0",
+        change: "",
+        trend: "neutral",
+        icon: CreditCard,
+      },
+    ]
+  }, [summary, recentTransactions, accountsSummary])
 
   const calculateDaysLeft = (dateString: string | null) => {
     if (!dateString) return null
@@ -84,7 +97,7 @@ export default function DashboardPage() {
     return Math.max(0, diff)
   }
 
-  if (isLoading) {
+  if (isLoading || isLoadingAccounts) {
     return (
       <DashboardLayout>
         <DashboardSkeleton />

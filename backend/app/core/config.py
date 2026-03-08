@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "phi3"
+    ollama_model: str = "deepseek-r1:1.5b"
     ollama_timeout: int = 120
 
     # Encryption

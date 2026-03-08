@@ -41,7 +41,8 @@ def enrich_single_transaction(
 transactions in parallel across different workers.
     """
     try:
-        return asyncio.run(_async_enrich_transaction(transaction_id, self.request.id))
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(_async_enrich_transaction(transaction_id, self.request.id))
     except Exception as exc:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)

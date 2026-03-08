@@ -8,7 +8,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.api import auth, credentials, health, recurring, transactions, users
+from app.api import auth, credentials, health, recurring, transactions, users, accounts
 from app.core.config import get_settings
 from app.core.database import close_db, init_db
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
@@ -52,6 +52,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(credentials.router)
+app.include_router(accounts.router)
 app.include_router(transactions.router)
 app.include_router(recurring.router)
 app.include_router(users.router)

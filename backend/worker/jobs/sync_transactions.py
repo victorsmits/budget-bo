@@ -16,7 +16,7 @@ sys.path.insert(0, "/app")
 from app.core.config import get_settings
 from app.core.database import create_worker_session
 from app.core.security import get_encryption_service
-from app.models.models import BankCredential, Transaction, TransactionCategory
+from app.models.models import BankCredential, BankAccount, Transaction, TransactionCategory
 from worker.celery_app import celery_app
 
 settings = get_settings()
@@ -116,9 +116,9 @@ async def _async_sync_credential(
         credential.last_sync_at = datetime.utcnow()
         await session.commit()
 
-        # Fetch transactions
+        # Fetch transactions and account data
         try:
-            transactions_data = await _fetch_woob_transactions(
+            woob_data = await _fetch_woob_data(
                 bank_name=credential.bank_name,
                 bank_website=credential.bank_website,
                 login=login,
@@ -138,7 +138,12 @@ async def _async_sync_credential(
 
         # Process transactions
         stats = await _process_transactions(
-            session, credential.user_id, credential_id, transactions_data
+            session, credential.user_id, credential_id, woob_data["transactions"]
+        )
+
+        # Process accounts (store/update balances)
+        await _process_accounts(
+            session, credential.user_id, credential_id, woob_data["accounts"]
         )
 
         # Mark as success
@@ -150,7 +155,7 @@ async def _async_sync_credential(
             "status": "success",
             "credential_id": credential_id,
             "task_id": task_id,
-            "processed": len(transactions_data),
+            "processed": len(woob_data["transactions"]),
             "created": stats["created"],
             "duplicates": stats["duplicates"],
             "errors": stats["errors"],
@@ -228,14 +233,14 @@ async def _process_transactions(
     }
 
 
-async def _fetch_woob_transactions(
+async def _fetch_woob_data(
     bank_name: str,
     bank_website: str | None,
     login: str,
     password: str,
     days_back: int,
-) -> list[dict[str, Any]]:
-    """Fetch transactions using Woob with custom patched module."""
+) -> dict[str, Any]:
+    """Fetch transactions and account data using Woob with custom patched module."""
     from custom_woob_modules.cragr_custom.browser import CragrCustomBrowser
 
     # Region mapping
@@ -284,6 +289,7 @@ async def _fetch_woob_transactions(
     }
 
     transactions: list[dict[str, Any]] = []
+    accounts: list[dict[str, Any]] = []
 
     # Convert region code to URL
     website_url = bank_website
@@ -295,6 +301,18 @@ async def _fetch_woob_transactions(
     since_date = datetime.now() - timedelta(days=days_back)
 
     for account in backend.iter_accounts():
+        # Store account info with balance
+        account_data = {
+            "id": account.id,
+            "label": account.label,
+            "type": account.type,
+            "balance": float(account.balance) if hasattr(account, "balance") and account.balance else 0.0,
+            "currency": account.currency or "EUR",
+            "number": account.number if hasattr(account, "number") else None,
+        }
+        accounts.append(account_data)
+
+        # Fetch transactions for this account
         for history in backend.iter_history(account):
             if history.date < since_date:
                 continue
@@ -310,7 +328,66 @@ async def _fetch_woob_transactions(
 
     backend.deinit()
 
-    return transactions
+    return {
+        "transactions": transactions,
+        "accounts": accounts,
+    }
+
+
+async def _process_accounts(
+    session: Any,
+    user_id: str,
+    credential_id: str,
+    accounts_data: list[dict],
+) -> dict[str, int]:
+    """Process and store/update account balances."""
+    created_count = 0
+    updated_count = 0
+    
+    for account_data in accounts_data:
+        try:
+            # Check if account already exists
+            result = await session.execute(
+                select(BankAccount).where(
+                    BankAccount.account_id == account_data["id"],
+                    BankAccount.user_id == user_id,
+                )
+            )
+            existing_account = result.scalar_one_or_none()
+            
+            if existing_account:
+                # Update existing account
+                existing_account.balance = Decimal(str(account_data["balance"]))
+                existing_account.account_label = account_data["label"]
+                existing_account.account_type = str(account_data["type"])
+                existing_account.currency = account_data["currency"]
+                existing_account.last_sync_at = datetime.utcnow()
+                updated_count += 1
+            else:
+                # Create new account
+                account = BankAccount(
+                    user_id=user_id,
+                    credential_id=credential_id,
+                    account_id=account_data["id"],
+                    account_label=account_data["label"],
+                    account_type=str(account_data["type"]),
+                    balance=Decimal(str(account_data["balance"])),
+                    currency=account_data["currency"],
+                    last_sync_at=datetime.utcnow(),
+                )
+                session.add(account)
+                created_count += 1
+                
+        except Exception as e:
+            print(f"Error processing account {account_data.get('id')}: {e}")
+            continue
+    
+    await session.commit()
+    
+    return {
+        "created": created_count,
+        "updated": updated_count,
+    }
 
 
 def _update_credential_status(credential_id: str, status: str, message: str | None) -> None:

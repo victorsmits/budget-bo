@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download } from "lucide-react"
+import { Search, Filter, Download, ChevronLeft, ChevronRight } from "lucide-react"
 import { api } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorCard } from "@/components/error"
@@ -33,6 +33,10 @@ const categoryColors: Record<string, string> = {
   healthcare: "bg-red-100 text-red-700",
   shopping: "bg-pink-100 text-pink-700",
   housing: "bg-indigo-100 text-indigo-700",
+  insurance: "bg-cyan-100 text-cyan-700",
+  entertainment: "bg-fuchsia-100 text-fuchsia-700",
+  education: "bg-teal-100 text-teal-700",
+  travel: "bg-amber-100 text-amber-700",
   other: "bg-gray-100 text-gray-700",
 }
 
@@ -45,6 +49,10 @@ const categoryLabels: Record<string, string> = {
   healthcare: "Santé",
   shopping: "Achats",
   housing: "Logement",
+  insurance: "Assurance",
+  entertainment: "Divertissement",
+  education: "Éducation",
+  travel: "Voyage",
   other: "Autre",
 }
 
@@ -61,12 +69,19 @@ export default function TransactionsPage() {
     has_next: false,
     has_prev: false,
   })
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [transactionType, setTransactionType] = useState<string>("all")
+  const [showFilters, setShowFilters] = useState(false)
 
   const fetchTransactions = async (page = 1) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await api.transactions.list({ page, size: pagination.size })
+      const params: any = { page, size: pagination.size }
+      if (selectedCategory) {
+        params.category = selectedCategory
+      }
+      const data = await api.transactions.list(params)
       setTransactions(data.items || [])
       setPagination({
         page: data.page || 1,
@@ -87,9 +102,37 @@ export default function TransactionsPage() {
     fetchTransactions()
   }, [])
 
-  const filteredTransactions = transactions.filter((tx) =>
-    (tx.cleaned_label || tx.raw_label).toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredTransactions = transactions.filter((tx) => {
+    const matchesSearch = (tx.cleaned_label || tx.raw_label).toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesType = transactionType === "all" ||
+      (transactionType === "expense" && tx.is_expense) ||
+      (transactionType === "income" && !tx.is_expense)
+    return matchesSearch && matchesType
+  })
+
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) return
+
+    const headers = ["Date", "Libellé", "Catégorie", "Type", "Montant", "Devise"]
+    const rows = filteredTransactions.map((tx) => [
+      tx.date,
+      `"${(tx.cleaned_label || tx.raw_label).replace(/"/g, '""')}"`,
+      categoryLabels[tx.category] || tx.category,
+      tx.is_expense ? "Dépense" : "Revenu",
+      tx.is_expense ? -tx.amount : tx.amount,
+      tx.currency,
+    ])
+
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   if (error) {
     return (
@@ -113,7 +156,11 @@ export default function TransactionsPage() {
               Historique ({pagination.total} transactions)
             </p>
           </div>
-          <Button variant="outline" disabled>
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={filteredTransactions.length === 0}
+          >
             <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
@@ -131,12 +178,67 @@ export default function TransactionsPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="sm" disabled>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className={showFilters ? "bg-muted" : ""}
+              >
                 <Filter className="mr-2 h-4 w-4" />
                 Filtres
               </Button>
             </div>
           </CardHeader>
+
+          {/* Filtres */}
+          {showFilters && (
+            <div className="px-6 pb-4 border-b">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Catégorie:</span>
+                  <select
+                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    value={selectedCategory}
+                    onChange={(e) => {
+                      setSelectedCategory(e.target.value)
+                      fetchTransactions(1)
+                    }}
+                  >
+                    <option value="">Toutes</option>
+                    {Object.entries(categoryLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Type:</span>
+                  <select
+                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                    value={transactionType}
+                    onChange={(e) => setTransactionType(e.target.value)}
+                  >
+                    <option value="all">Tous</option>
+                    <option value="expense">Dépenses</option>
+                    <option value="income">Revenus</option>
+                  </select>
+                </div>
+                {(selectedCategory || transactionType !== "all") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedCategory("")
+                      setTransactionType("all")
+                      fetchTransactions(1)
+                    }}
+                  >
+                    Réinitialiser
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           <CardContent>
             {isLoading ? (
               <div className="space-y-4">
@@ -194,6 +296,33 @@ export default function TransactionsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Page {pagination.page} sur {pagination.pages} ({pagination.total} transactions)
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchTransactions(pagination.page - 1)}
+                    disabled={!pagination.has_prev || isLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchTransactions(pagination.page + 1)}
+                    disabled={!pagination.has_next || isLoading}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

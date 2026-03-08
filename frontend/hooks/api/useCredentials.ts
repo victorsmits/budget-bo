@@ -89,3 +89,19 @@ export function useSyncCredential() {
     },
   })
 }
+
+export function useDeleteCredential() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (credentialId: string) => api.credentials.delete(credentialId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["credentials"] })
+      toast.success("Compte bancaire supprimé")
+    },
+    onError: (error) => {
+      console.error("Delete credential failed:", error)
+      toast.error("Échec de la suppression")
+    },
+  })
+}

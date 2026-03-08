@@ -66,6 +66,10 @@ class User(UserBase, table=True):
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    bank_accounts: list["BankAccount"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
     transactions: list["Transaction"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -161,7 +165,48 @@ class BankCredentialUpdate(SQLModel):
 # endregion
 
 
-# region Transaction Models
+# region BankAccount Models
+
+
+class BankAccountBase(SQLModel):
+    """Base model for BankAccount."""
+
+    account_id: str = Field(description="Account ID from the bank (e.g., account number)")
+    account_label: str = Field(description="Human-readable account name")
+    account_type: str = Field(default="unknown", description="Account type (checking, savings, etc.)")
+    balance: Decimal = Field(sa_column=Column(Numeric(12, 2)), description="Real balance from the bank")
+    currency: str = Field(default="EUR")
+
+
+class BankAccount(BankAccountBase, table=True):
+    """Bank account information including real balance."""
+
+    __tablename__ = "bank_accounts"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    credential_id: UUID = Field(foreign_key="bank_credentials.id", index=True)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_sync_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Relationships
+    user: User = Relationship(back_populates="bank_accounts")
+
+
+class BankAccountPublic(BankAccountBase):
+    """Public bank account model for API responses."""
+
+    id: UUID
+    user_id: UUID
+    credential_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    last_sync_at: datetime
+
+
+# endregion
 
 
 class TransactionBase(SQLModel):

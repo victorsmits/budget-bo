@@ -81,6 +81,14 @@ export const api = {
       apiClient("/credentials", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: { bank_name?: string; bank_label?: string; bank_website?: string; login?: string; password?: string }) =>
       apiClient(`/credentials/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => apiClient(`/credentials/${id}`, { method: "DELETE" }),
     sync: (id: string) => apiClient(`/credentials/${id}/sync`, { method: "POST" }),
+  },
+
+  // Accounts
+  accounts: {
+    list: () => apiClient("/accounts"),
+    summary: () => apiClient("/accounts/summary"),
+    getById: (id: string) => apiClient(`/accounts/${id}`),
   },
 }

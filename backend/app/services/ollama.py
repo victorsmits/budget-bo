@@ -23,7 +23,7 @@ class OllamaService:
         """Initialize Ollama service."""
         self.base_url = base_url or settings.ollama_base_url
         self.model = model or settings.ollama_model
-        self.timeout = 30.0
+        self.timeout = 120.0
 
     async def _generate(self, prompt: str, temperature: float = 0.3) -> str:
         """Send generation request to Ollama API."""
@@ -32,10 +32,10 @@ class OllamaService:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
+            "format": "json",
             "options": {
                 "temperature": temperature,
-                "num_predict": 150,
-                "stop": ["\n\n", "###", "---"],  # Ajout de stop tokens
+                "num_predict": 256,
             },
         }
 
@@ -56,135 +56,82 @@ class OllamaService:
             - category: Suggested category
             - confidence: 0.0 to 1.0
         """
-        prompt = f"""I need you to clean up this bank transaction name and tell me what it is.
+        prompt = f"""Tu es un expert en analyse de relevés bancaires français.
 
-Original name: "{raw_label}"
+MISSION : Analyser ce libellé bancaire et extraire le nom propre du commerçant + catégorie.
 
-Your job:
-1. Remove all the weird numbers, references and bank codes
-2. Keep only the actual store or company name
-3. Tell me what type of expense it is
+LIBELLÉ À ANALYSER : "{raw_label}"
 
-Examples:
-- "CARTE 12/10 Netflix.com 9.99" becomes "Netflix" (entertainment)
-- "EUROP ASSISTANCE ITALIA SPA/REF00000000000000000000000000151219/3206903896" becomes "Europ Assistance" (insurance)
-- "PRLVM SEPA EDF 123456789" becomes "EDF" (utilities)
+RÈGLES DE DÉCODAGE DES LIBELLÉS FRANÇAIS :
+- "CARTE", "CB", "X7722", "X1234" = paiement par carte (à supprimer)
+- "PRLV", "PRLVM", "PRELEVEMENT" = prélèvement automatique (à supprimer)
+- "VIR SEPA", "VIREMENT EN VOTRE FAVEUR" = virement entrant → catégorie "income"
+- "BOUCH.", "BOUCHERIE" = Boucherie
+- "PHARM.", "PHIE", "PHARMACIE" = Pharmacie
+- "ELECTRO." = Électronique/Multimédia
+- Les codes alphanumériques (REF000..., /320690..., YYW10487...) sont des références bancaires à IGNORER
+- Les noms de villes en fin de libellé (PARIS, LYON, TOULOUSE...) sont à IGNORER
 
-Categories you can use: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
+CATÉGORIES AUTORISÉES : housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
 
-Reply with ONLY this format:
-{{"cleaned_label": "Clean Name", "merchant_name": "merchant", "category": "category", "confidence": 0.95}}"""
+EXEMPLES D'ANALYSE :
 
-        try:
-            response = await self._generate(prompt, temperature=0.1)
-            # Nettoyer la réponse pour trouver le JSON
-            response = response.strip()
-            
-            # Si la réponse contient des backticks, extraire le JSON à l'intérieur
-            if "```" in response:
-                # Trouver le contenu entre les backticks
-                start = response.find("```") + 3
-                end = response.rfind("```")
-                if start > 2 and end > start:
-                    response = response[start:end].strip()
-                # Enlever "json" s'il est présent après ```
-                if response.startswith("json"):
-                    response = response[4:].strip()
-            
-            # Chercher le JSON dans la réponse
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            
-            if json_start >= 0 and json_end > json_start:
-                json_str = response[json_start:json_end]
-                
-                # Utiliser une approche plus robuste pour extraire le JSON valide
-                # Reconstruire le JSON en ne gardant que les clés valides
-                import re
-                
-                # Chercher les paires clé-valeur valides avec regex
-                pattern = r'"(\w+)"\s*:\s*"([^"]*)"'
-                matches = re.findall(pattern, json_str)
-                
-                # Chercher aussi les valeurs numériques
-                pattern_num = r'"(\w+)"\s*:\s*([\d.]+)'
-                matches_num = re.findall(pattern_num, json_str)
-                
-                # Construire le dictionnaire
-                result = {}
-                for key, value in matches:
-                    result[key] = value
-                for key, value in matches_num:
-                    try:
-                        result[key] = float(value)
-                    except:
-                        result[key] = value
-                
-                # Si on a les clés requises, utiliser le résultat
-                if "cleaned_label" in result or "category" in result:
-                    category = result.get("category", "other").lower().strip()
-                    if category not in ["housing", "transportation", "food", "utilities", "healthcare", 
-                                      "entertainment", "shopping", "subscriptions", "income", 
-                                      "insurance", "education", "travel", "other"]:
-                        category = "other"
-                    
-                    # Nettoyer le cleaned_label
-                    cleaned_label = result.get("cleaned_label", raw_label).strip()
-                    
-                    # Si le cleaned_label est identique au raw_label, essayer un nettoyage basique
-                    if cleaned_label == raw_label:
-                        # Nettoyage basique par regex
-                        import re
-                        # Enlever les références après /
-                        cleaned_label = re.sub(r'/.*$', '', cleaned_label)
-                        # Enlever les références REF
-                        cleaned_label = re.sub(r'REF[\dA-Z]*', '', cleaned_label)
-                        # Enlever les numéros de téléphone longs
-                        cleaned_label = re.sub(r'\b\d{10,}\b', '', cleaned_label)
-                        # Nettoyer les espaces multiples
-                        cleaned_label = re.sub(r'\s+', ' ', cleaned_label).strip()
-                        # Si c'est toujours vide, utiliser une partie du raw_label
-                        if not cleaned_label:
-                            # Prendre les 30 premiers caractères
-                            cleaned_label = raw_label[:30].strip()
-                    
-                    return {
-                        "cleaned_label": cleaned_label,
-                        "merchant_name": result.get("merchant_name", cleaned_label),
-                        "category": category,
-                        "confidence": float(result.get("confidence", 0.5))
-                    }
-            
-            # Si tout échoue, retourner une réponse par défaut
-            return {
-                "cleaned_label": raw_label[:30].strip(),
-                "merchant_name": raw_label[:30].strip(),
-                "category": "other",
-                "confidence": 0.1
-            }
-                
-        except Exception as e:
-            print(f"Error parsing AI response: {e}")
-            # En cas d'erreur, faire un nettoyage basique
-            import re
-            cleaned_label = raw_label
-            # Enlever les références après /
-            cleaned_label = re.sub(r'/.*$', '', cleaned_label)
-            # Enlever les références REF
-            cleaned_label = re.sub(r'REF[\dA-Z]*', '', cleaned_label)
-            # Enlever les numéros de téléphone longs
-            cleaned_label = re.sub(r'\b\d{10,}\b', '', cleaned_label)
-            # Nettoyer les espaces multiples
-            cleaned_label = re.sub(r'\s+', ' ', cleaned_label).strip()
-            
-            if not cleaned_label:
-                cleaned_label = raw_label[:30].strip()
+1. "X7722 CANAL PLUS FR ISSY L" 
+   → cleaned_label: "Canal+" | category: "subscriptions" | confidence: 0.95
+
+2. "PRLVM SEPA NETFLIX.COM"
+   → cleaned_label: "Netflix" | category: "subscriptions" | confidence: 0.98
+
+3. "VIREMENT EN VOTRE FAVEUR PayPal Europe"
+   → cleaned_label: "PayPal" | category: "income" | confidence: 0.95
+
+4. "EUROP ASSISTANCE ITALIA SPA/REF00000000000000000000000000151219/3206903896"
+   → cleaned_label: "Europ Assistance" | category: "insurance" | confidence: 0.92
+
+5. "CARTE 05/03 CARREFOUR CITY"
+   → cleaned_label: "Carrefour City" | category: "food" | confidence: 0.95
+
+6. "X7722 LIDL"
+   → cleaned_label: "Lidl" | category: "food" | confidence: 0.95
+
+7. "PRLV SEPA FREE MOBILE"
+   → cleaned_label: "Free Mobile" | category: "utilities" | confidence: 0.95
+
+8. "VIR SEPA SALAIRE MARS 2026"
+   → cleaned_label: "Salaire" | category: "income" | confidence: 0.95
+
+9. "X7722 SHELL AUTOROUTE A6"
+   → cleaned_label: "Shell" | category: "transportation" | confidence: 0.90
+
+10. "PRLV SEPA MACIF ASSURANCES"
+    → cleaned_label: "Macif" | category: "insurance" | confidence: 0.95
+
+INSTRUCTIONS FINALES :
+1. cleaned_label doit être COURT, LISIBLE, sans codes ni références
+2. merchant_name = même valeur que cleaned_label généralement
+3. Choisis la catégorie la plus appropriée parmi celles listées
+4. confidence : 0.0 à 1.0 selon ta certitude
+
+RÉPONDS UNIQUEMENT AVEC CE JSON (rien d'autre) :
+{{"cleaned_label": "Nom", "merchant_name": "Nom", "category": "categorie", "confidence": 0.95}}"""
+
+        response = await self._generate(prompt, temperature=0.1)
+        print(f"[AI RAW RESPONSE]: {response!r}")
+
+        # Parse JSON directement
+        result = json.loads(response.strip())
+        
+        category = result.get("category", "other").lower().strip()
+        if category not in ["housing", "transportation", "food", "utilities", "healthcare", 
+                          "entertainment", "shopping", "subscriptions", "income", 
+                          "insurance", "education", "travel", "other"]:
+            category = "other"
 
         return {
-            "cleaned_label": cleaned_label,
-            "merchant_name": cleaned_label,
-            "category": "other",
-            "confidence": 0.1,
+            "cleaned_label": result.get("cleaned_label", raw_label).strip(),
+            "merchant_name": result.get("merchant_name", result.get("cleaned_label", raw_label)).strip(),
+            "category": category,
+            "confidence": float(result.get("confidence", 0.5))
         }
 
     async def categorize_transaction(
@@ -199,44 +146,37 @@ Reply with ONLY this format:
         Returns:
             Dict with category and reasoning
         """
-        hint = f"Merchant: {merchant_hint}\n" if merchant_hint else ""
-        prompt = f"""Categorize this financial transaction:
+        hint = f"Commerçant identifié : {merchant_hint}\n" if merchant_hint else ""
+        direction = "crédit (entrée d'argent)" if amount > 0 else "débit (dépense)"
+        
+        prompt = f"""Catégorise cette transaction bancaire française.
 
-Label: "{label}"
-Amount: {amount} EUR
+Libellé : "{label}"
+Montant : {amount} EUR ({direction})
 {hint}
-Categories: housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
+Catégories valides : housing, transportation, food, utilities, healthcare, entertainment, shopping, subscriptions, income, insurance, education, travel, other
 
-Respond with ONLY JSON:
+Règles :
+- Si c'est un virement entrant (VIREMENT EN VOTRE FAVEUR, SALAIRE) → "income"
+- Si c'est un remboursement avec montant positif → "income"
+- Analyse le libellé pour déterminer la catégorie appropriée
+
+Réponds UNIQUEMENT avec ce JSON :
 {{
-    "category": "category_name",
-    "reasoning": "Brief explanation",
-    "is_expense": true/false,
+    "category": "nom_categorie",
+    "reasoning": "Explication courte en français",
+    "is_expense": true,
     "confidence": 0.95
-}}
+}}"""
 
-JSON:"""
-
-        try:
-            response = await self._generate(prompt, temperature=0.2)
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                result = json.loads(response[json_start:json_end])
-                return {
-                    "category": result.get("category", "other"),
-                    "reasoning": result.get("reasoning", ""),
-                    "is_expense": result.get("is_expense", amount < 0),
-                    "confidence": float(result.get("confidence", 0.5)),
-                }
-        except Exception:
-            pass
-
+        response = await self._generate(prompt, temperature=0.2)
+        result = json.loads(response.strip())
+        
         return {
-            "category": "other",
-            "reasoning": "",
-            "is_expense": amount < 0,
-            "confidence": 0.0,
+            "category": result.get("category", "other"),
+            "reasoning": result.get("reasoning", ""),
+            "is_expense": result.get("is_expense", amount < 0),
+            "confidence": float(result.get("confidence", 0.5)),
         }
 
     async def is_recurring_pattern(
@@ -251,39 +191,33 @@ JSON:"""
         
         Complements the algorithmic detection with LLM reasoning.
         """
-        prompt = f"""Analyze if these transactions form a recurring payment pattern:
+        prompt = f"""Analyse si ces transactions forment un paiement récurrent :
 
-Merchant: {merchant}
-Label pattern: "{label}"
-Amounts: {amounts}
-Dates: {dates}
+Commerçant : {merchant}
+Libellé : "{label}"
+Montants : {amounts}
+Dates : {dates}
 
-Common recurring payments: rent, utilities, subscriptions (Netflix, Spotify), insurance, salary, gym, phone bills.
+Paiements récurrents courants : loyer, factures, abonnements (Netflix, Spotify), assurance, salaire, salle de sport, téléphone.
 
-Respond with ONLY JSON:
+Analyse la régularité et le motif des dates/montants.
+
+Réponds UNIQUEMENT en JSON :
 {{
-    "is_recurring": true/false,
-    "pattern_type": "monthly/weekly/quarterly/annual/unknown",
+    "is_recurring": true,
+    "pattern_type": "monthly",
     "confidence": 0.9,
-    "reasoning": "Brief explanation"
-}}
+    "reasoning": "Explication courte"
+}}"""
 
-JSON:"""
-
-        try:
-            response = await self._generate(prompt, temperature=0.2)
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                return json.loads(response[json_start:json_end])
-        except Exception:
-            pass
-
+        response = await self._generate(prompt, temperature=0.2)
+        result = json.loads(response.strip())
+        
         return {
-            "is_recurring": False,
-            "pattern_type": "unknown",
-            "confidence": 0.0,
-            "reasoning": "",
+            "is_recurring": result.get("is_recurring", False),
+            "pattern_type": result.get("pattern_type", "unknown"),
+            "confidence": float(result.get("confidence", 0.0)),
+            "reasoning": result.get("reasoning", ""),
         }
 
 

@@ -76,8 +76,8 @@ services:
       - DB_POOL_SIZE=10
       - DB_MAX_OVERFLOW=20
       - DB_POOL_TIMEOUT=30
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=phi3
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b}
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -87,7 +87,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - backend_venv:/app/.venv
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,13 +116,13 @@ services:
       - DB_POOL_SIZE=10
       - DB_MAX_OVERFLOW=20
       - DB_POOL_TIMEOUT=30
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=phi3
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b}
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - backend_venv:/app/.venv
       - woob_data:/root/.woob
     depends_on:
       postgres:
@@ -155,7 +155,8 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - backend_venv:/app/.venv
+      
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,7 +182,8 @@ services:
       - FLOWER_UNAUTHENTICATED_API=true
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - backend_venv:/app/.venv
+      
     ports:
       - "5555:5555"
     depends_on:
@@ -199,6 +201,7 @@ volumes:
   redis_data:
   ollama_data:
   woob_data:
+  backend_venv:
 
 networks:
   budget-bo-network:

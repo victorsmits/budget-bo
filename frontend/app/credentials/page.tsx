@@ -170,6 +170,18 @@ export default function CredentialsPage() {
     }
   }
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer ce compte bancaire ?\n\nCette action supprimera également toutes les transactions associées.")) {
+      return
+    }
+    try {
+      await api.credentials.delete(id)
+      await fetchCredentials()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de la suppression")
+    }
+  }
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case "success":
@@ -363,7 +375,13 @@ export default function CredentialsPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" disabled>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(cred.id)}
+                        disabled={isAdding}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
