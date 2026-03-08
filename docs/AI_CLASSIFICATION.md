@@ -5,11 +5,9 @@
 Budget Bo utilise Ollama avec le modèle Phi3 pour classifier automatiquement les transactions bancaires. Cette fonctionnalité permet de :
 
 - **Normaliser les libellés** : `PRLVM SEPA NETFLIX.COM` → `Netflix`
-- **Éviter les faux nettoyages** : si aucun meilleur libellé n'est trouvé, `cleaned_label` reste vide (`""`) au lieu de recopier le libellé brut
 - **Extraire les marchands** : Identifier automatiquement le nom du commerçant
 - **Catégoriser** : Assigner une catégorie (food, transportation, entertainment, etc.)
 - **Calculer la confiance** : Score de 0.0 à 1.0 indiquant la fiabilité de la classification
-- **Apprendre des corrections utilisateur** : Les corrections sont mémorisées et réutilisées automatiquement
 
 ## Configuration
 
@@ -41,12 +39,6 @@ OLLAMA_TIMEOUT=120
 
 Les nouvelles transactions sont automatiquement enrichies lors de la synchronisation bancaire.
 
-Le prompt IA force désormais la vérification via recherche web (`web_search`) dès que le marchand est ambigu ou peu connu, afin d'obtenir un nom d'enseigne plus fiable et une meilleure catégorie métier.
-
-Le worker limite aussi le nombre de tours d'outil et n'appelle la seconde étape de catégorisation IA que si nécessaire, pour réduire les timeouts (`/api/chat` 500) et garder un enrichissement robuste même si Ollama est lent.
-
-La catégorie `income` est désormais appliquée uniquement en présence d'indices explicites (salaire, paie, remboursement, allocation, etc.) et non pas simplement parce que le montant est positif.
-
 ### Enrichissement manuel
 
 Pour déclencher manuellement l'enrichissement des transactions non traitées :
@@ -60,32 +52,15 @@ curl -X POST "http://localhost:8000/transactions/enrich?days_back=30" \
 docker compose exec backend python scripts/enrich_transactions.py
 ```
 
-
-### Correction utilisateur + apprentissage
-
-Si une classification est incorrecte, l'utilisateur peut corriger la transaction.
-Le backend crée/met à jour une règle d'enrichissement pour réutiliser ce choix
-la prochaine fois qu'un libellé similaire est rencontré.
-
-```bash
-curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
-  -H "Content-Type: application/json" \
-  -d '{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions"}' \
-  -b cookies.txt
-```
-
 ### Catégories disponibles
 
 - `housing` - Logement
 - `transportation` - Transport
-- `food` - Alimentation (générique)
-- `groceries` - Courses / supermarché
-- `dining` - Restaurant / snack / livraison repas
+- `food` - Alimentation
 - `utilities` - Factures (électricité, eau, etc.)
 - `healthcare` - Santé
 - `entertainment` - Divertissement
-- `shopping` - Shopping (fallback)
-- `home_improvement` - Maison / bricolage / ameublement
+- `shopping` - Shopping
 - `subscriptions` - Abonnements
 - `income` - Revenus
 - `insurance` - Assurance

@@ -1,21 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
-import {
-  PaginatedResponse,
-  SummaryData,
-  Transaction,
-  TransactionCorrectionPayload,
-  TransactionFilters,
-} from "@/types/api"
+import { Transaction, SummaryData, TransactionFilters, PaginatedResponse } from "@/types/api"
 
 // Types exportés depuis @/types/api
-export type {
-  Transaction,
-  SummaryData,
-  TransactionCorrectionPayload,
-  TransactionFilters,
-} from "@/types/api"
+export type { Transaction, SummaryData, TransactionFilters } from "@/types/api"
 
 // Hooks
 export function useTransactions(filters?: TransactionFilters) {
@@ -24,7 +13,7 @@ export function useTransactions(filters?: TransactionFilters) {
     queryFn: () => api.transactions.list(filters || {}),
     select: (data) => {
       // Gérer les réponses paginées ou directes
-      if (data && typeof data === "object" && "items" in data) {
+      if (data && typeof data === 'object' && 'items' in data) {
         return (data as PaginatedResponse<Transaction>).items
       }
       return Array.isArray(data) ? data : []
@@ -47,7 +36,7 @@ export function useRecentTransactions(limit: number = 5) {
     queryFn: () => api.transactions.list({ size: limit }),
     select: (data) => {
       // Gérer les réponses paginées ou directes
-      if (data && typeof data === "object" && "items" in data) {
+      if (data && typeof data === 'object' && 'items' in data) {
         return (data as PaginatedResponse<Transaction>).items
       }
       return Array.isArray(data) ? data : []
@@ -67,7 +56,7 @@ export function useTransaction(id: string) {
 
 export function useEnrichTransaction() {
   const queryClient = useQueryClient()
-
+  
   return useMutation({
     mutationFn: async (transactionId: string) => {
       const response = await api.transactions.enrich(transactionId)
@@ -82,32 +71,6 @@ export function useEnrichTransaction() {
     onError: (error) => {
       console.error("Enrich failed:", error)
       toast.error("Échec de l'enrichissement de la transaction")
-    },
-  })
-}
-
-export function useCorrectTransaction() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      transactionId,
-      payload,
-    }: {
-      transactionId: string
-      payload: TransactionCorrectionPayload
-    }) => {
-      const response = await api.transactions.correct(transactionId, payload)
-      return response
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["transaction", variables.transactionId] })
-      queryClient.invalidateQueries({ queryKey: ["transactions"] })
-      toast.success("Correction enregistrée et mémorisée")
-    },
-    onError: (error) => {
-      console.error("Correction failed:", error)
-      toast.error("Impossible d'enregistrer la correction")
     },
   })
 }

@@ -4,20 +4,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from celery import Task
+from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
 
 from app.core.database import get_worker_session
 from app.models.models import Transaction, TransactionCategory
-from app.services.enrichment_memory import (
-    apply_rule_to_transaction,
-    get_rule_for_label,
-    upsert_rule_from_transaction,
-)
-from app.services.enrichment_intelligence import (
-    has_explicit_income_signal,
-    infer_category_from_text,
-    normalize_consumer_merchant,
-)
 from app.services.ollama import OllamaService
 from worker.celery_app import celery_app
 
@@ -50,74 +41,13 @@ def enrich_single_transaction(
         raw_label = tx.raw_label  # lu avant tout appel externe
 
         try:
-            learned_rule = get_rule_for_label(session, tx.user_id, raw_label)
+            normalization = OllamaService().normalize_label(raw_label)
 
-            if learned_rule is not None:
-                apply_rule_to_transaction(tx, learned_rule)
-                learned_rule.usage_count += 1
-                learned_rule.updated_at = datetime.utcnow()
-            else:
-                ollama_service = OllamaService()
-                normalization = ollama_service.normalize_label(raw_label)
-
-                normalized_merchant = normalize_consumer_merchant(
-                    normalization.get("merchant_name"),
-                    normalization.get("cleaned_label", ""),
-                    raw_label,
-                )
-                tx.cleaned_label = normalization.get("cleaned_label", "")
-                tx.merchant_name = normalized_merchant
-
-                rule_based_category = infer_category_from_text(
-                    label=tx.cleaned_label or tx.merchant_name or raw_label,
-                    merchant=tx.merchant_name or "",
-                    amount=float(tx.amount),
-                )
-                normalized_category = str(normalization.get("category", "other")).lower()
-
-                needs_llm_categorization = (
-                    rule_based_category is None
-                    and normalized_category in {"other", "shopping", "income"}
-                )
-
-                signed_amount = -float(tx.amount) if tx.is_expense else float(tx.amount)
-
-                categorization: dict[str, Any] = {}
-                if needs_llm_categorization:
-                    categorization = ollama_service.categorize_transaction(
-                        label=tx.cleaned_label or tx.merchant_name or raw_label,
-                        amount=signed_amount,
-                        merchant_hint=tx.merchant_name,
-                    )
-
-                selected_category = (
-                    rule_based_category
-                    or categorization.get("category")
-                    or normalization.get("category")
-                )
-
-                if str(selected_category) == "income" and not has_explicit_income_signal(
-                    tx.cleaned_label or tx.merchant_name or raw_label,
-                    tx.merchant_name or "",
-                ):
-                    fallback_category = rule_based_category or normalized_category
-                    if fallback_category and str(fallback_category) != "income":
-                        selected_category = fallback_category
-                    else:
-                        selected_category = "other"
-
-                tx.ai_confidence = max(
-                    float(normalization.get("confidence", 0.0)),
-                    float(categorization.get("confidence", 0.0)),
-                )
-                tx.ai_category_reasoning = categorization.get(
-                    "reasoning",
-                    "Category inferred from normalization/rules",
-                )
-                tx.is_expense = bool(categorization.get("is_expense", tx.is_expense))
-                tx.category = _map_category(str(selected_category))
-                tx.enriched_at = datetime.utcnow()
-                upsert_rule_from_transaction(session, tx)
+            tx.cleaned_label = normalization["cleaned_label"]
+            tx.merchant_name = normalization["merchant_name"]
+            tx.ai_confidence = normalization["confidence"]
+            tx.category      = _map_category(normalization["category"])
+            tx.enriched_at   = datetime.utcnow()
 
             session.commit()
 
