@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.core.rate_limit import limiter
 
 from app.api.auth import require_user
@@ -46,6 +47,7 @@ async def list_credentials(
 
 
 @router.post("", response_model=BankCredentialPublic, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def create_credential(
     request: Request,
     credential: BankCredentialCreate,
@@ -53,12 +55,6 @@ async def create_credential(
     session: AsyncSession = Depends(get_session),
 ) -> BankCredentialPublic:
     """Create new bank credential (encrypted)."""
-    # Get limiter from app state
-    limiter = request.app.state.limiter
-    
-    # Apply rate limit
-    await limiter.check("5/minute", request)
-    
     # Validate credential fields
     validate_bank_credentials(
         credential.bank_name,

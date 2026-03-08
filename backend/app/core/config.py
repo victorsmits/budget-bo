@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "deepseek-r1:1.5b"
+    ollama_model: str = "qwen2.5:7b"
     ollama_timeout: int = 120
 
     # Encryption
@@ -48,13 +48,16 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     @property
+    def database_url_sync(self) -> str:
+        """Sync URL for Celery workers (psycopg2)."""
+        return self.database_url.replace("+asyncpg", "+psycopg2")
+
+    @property
     def is_development(self) -> bool:
-        """Check if running in development mode."""
         return self.environment == "development"
 
     @property
     def is_production(self) -> bool:
-        """Check if running in production mode."""
         return self.environment == "production"
 
 

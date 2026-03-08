@@ -34,23 +34,23 @@ services:
       - budget-bo-network
 
   # Ollama - Local AI Inference
-#  ollama:
-#    image: ollama/ollama:latest
-#    container_name: budget-bo-ollama
-#    ports:
-#      - "11434:11434"
-#    volumes:
-#      - ollama_data:/root/.ollama
-#    environment:
-#      - OLLAMA_HOST=0.0.0.0:11434
-#    healthcheck:
-#      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 10
-#      start_period: 120s
-#    networks:
-#      - budget-bo-network
+  ollama:
+    image: ollama/ollama:latest
+    container_name: budget-bo-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    networks:
+      - budget-bo-network
     # GPU support disabled - runs on CPU
     # deploy:
     #   resources:
