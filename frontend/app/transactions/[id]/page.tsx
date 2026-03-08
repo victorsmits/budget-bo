@@ -1,41 +1,28 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Brain, Calendar, Tag, CreditCard, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Brain, Calendar, CreditCard, Loader2, Save, Tag } from "lucide-react"
+
+import DashboardLayout from "@/app/dashboard-layout"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import DashboardLayout from "@/app/dashboard-layout"
-import {
-  useTransaction,
-  useEnrichTransaction,
-  useCorrectTransaction,
-} from "@/hooks/api/useTransactions"
-import { formatCurrency, formatDate } from "@/lib/utils"
 import { QueryErrorBoundary } from "@/components/ui/query-error-boundary"
-
-const categories = [
-  "housing",
-  "transportation",
-  "food",
-  "groceries",
-  "dining",
-  "utilities",
-  "healthcare",
-  "entertainment",
-  "shopping",
-  "home_improvement",
-  "subscriptions",
-  "income",
-  "insurance",
-  "education",
-  "travel",
-  "other",
-]
+import { Separator } from "@/components/ui/separator"
+import {
+  useCorrectTransaction,
+  useEnrichTransaction,
+  useTransaction,
+} from "@/hooks/api/useTransactions"
+import {
+  getCategoryLabel,
+  getTransactionDisplayLabel,
+  TRANSACTION_CATEGORY_OPTIONS,
+} from "@/lib/transaction-presentation"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 export default function TransactionDetailPage() {
   const params = useParams()
@@ -60,6 +47,10 @@ export default function TransactionDetailPage() {
     setSelectedType(transaction.is_expense ? "expense" : "income")
   }, [transaction])
 
+  const displayLabel = useMemo(() => {
+    return transaction ? getTransactionDisplayLabel(transaction) : ""
+  }, [transaction])
+
   const handleEnrich = async () => {
     if (!transaction) return
     await enrichMutation.mutateAsync(transaction.id)
@@ -71,7 +62,7 @@ export default function TransactionDetailPage() {
     await correctMutation.mutateAsync({
       transactionId: transaction.id,
       payload: {
-        cleaned_label: cleanedLabel.trim(),
+        cleaned_label: cleanedLabel.trim() || null,
         merchant_name: merchantName.trim() || null,
         category: selectedCategory,
         is_expense: selectedType === "expense",
@@ -136,8 +127,8 @@ export default function TransactionDetailPage() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Libellé</p>
-                  <p className="text-base">{transaction.cleaned_label || transaction.merchant_name || transaction.raw_label}</p>
-                  {(transaction.cleaned_label || transaction.merchant_name) && (transaction.cleaned_label || transaction.merchant_name) !== transaction.raw_label && (
+                  <p className="text-base">{displayLabel}</p>
+                  {displayLabel !== transaction.raw_label && (
                     <p className="mt-1 text-sm text-muted-foreground">Original: {transaction.raw_label}</p>
                   )}
                 </div>
@@ -147,11 +138,7 @@ export default function TransactionDetailPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Montant</p>
-                    <p
-                      className={`text-lg font-bold ${
-                        transaction.is_expense ? "text-red-600" : "text-green-600"
-                      }`}
-                    >
+                    <p className={`text-lg font-bold ${transaction.is_expense ? "text-red-600" : "text-green-600"}`}>
                       {transaction.is_expense ? "-" : "+"}
                       {formatCurrency(transaction.amount)}
                     </p>
@@ -178,7 +165,7 @@ export default function TransactionDetailPage() {
                     <p className="text-sm font-medium text-muted-foreground">Catégorie</p>
                     <p className="flex items-center gap-1">
                       <Tag className="h-4 w-4" />
-                      {transaction.category || "Non catégorisé"}
+                      {getCategoryLabel(transaction.category || "other")}
                     </p>
                   </div>
                 </div>
@@ -186,9 +173,7 @@ export default function TransactionDetailPage() {
                 {transaction.is_recurring && (
                   <>
                     <Separator />
-                    <div>
-                      <Badge variant="secondary">Transaction récurrente</Badge>
-                    </div>
+                    <Badge variant="secondary">Transaction récurrente</Badge>
                   </>
                 )}
               </CardContent>
@@ -230,9 +215,9 @@ export default function TransactionDetailPage() {
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
                   >
-                    {categories.map((category) => (
+                    {TRANSACTION_CATEGORY_OPTIONS.map((category) => (
                       <option key={category} value={category}>
-                        {category}
+                        {getCategoryLabel(category)}
                       </option>
                     ))}
                   </select>
@@ -253,11 +238,7 @@ export default function TransactionDetailPage() {
                   </select>
                 </div>
 
-                <Button
-                  className="w-full"
-                  onClick={handleCorrectionSave}
-                  disabled={correctMutation.isPending || !cleanedLabel.trim()}
-                >
+                <Button className="w-full" onClick={handleCorrectionSave} disabled={correctMutation.isPending}>
                   <Save className="mr-2 h-4 w-4" />
                   {correctMutation.isPending ? "Enregistrement..." : "Enregistrer la correction"}
                 </Button>
