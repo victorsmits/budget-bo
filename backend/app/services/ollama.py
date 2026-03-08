@@ -6,18 +6,13 @@ from typing import Any
 import ollama
 
 from app.core.config import get_settings
+from app.services.ai_constants import VALID_CATEGORIES
+from app.services.ollama_prompts import (
+    build_normalization_system_prompt,
+    build_normalization_user_prompt,
+)
 
 settings = get_settings()
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-VALID_CATEGORIES = frozenset({
-    "housing", "transportation", "food", "utilities", "healthcare",
-    "entertainment", "shopping", "subscriptions", "income",
-    "insurance", "education", "travel", "other",
-})
 
 # ---------------------------------------------------------------------------
 # Tool definition exposed to the LLM
@@ -92,7 +87,6 @@ class OllamaService:
 
     def __init__(self, host: str | None = None, model: str | None = None) -> None:
         self.model = model or settings.ollama_model
-        print(self.model)
         self.client = ollama.Client(host=host or settings.ollama_base_url)
 
     # ------------------------------------------------------------------
@@ -151,35 +145,11 @@ class OllamaService:
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "Tu es un expert en analyse de relevés bancaires français. "
-                    "Tu réponds UNIQUEMENT en JSON valide. "
-                    "Si tu ne reconnais pas le commerçant, utilise l'outil web_search."
-                ),
+                "content": build_normalization_system_prompt(),
             },
             {
                 "role": "user",
-                "content": f"""Analyse ce libellé bancaire et extrais le nom du commerçant + catégorie.
-
-LIBELLÉ : "{raw_label}"
-
-RÈGLES :
-- Supprimer : CARTE, CB, PRLV, PRLVM, PRELEVEMENT, SEPA, VIR, codes X1234, refs /REF…
-- Supprimer les villes en fin de libellé (PARIS, LYON…)
-- "BOUCH."→Boucherie | "PHARM."→Pharmacie | "ELECTRO."→Électronique
-- Virement entrant / SALAIRE → category "income"
-- Si tu ne reconnais pas le commerçant → utilise web_search avant de répondre
-
-Catégories valides : {", ".join(sorted(VALID_CATEGORIES))}
-
-Exemples :
-"PRLVM SEPA NETFLIX.COM"   → {{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions","confidence":0.98}}
-"X7722 CANAL PLUS FR ISSY" → {{"cleaned_label":"Canal+","merchant_name":"Canal+","category":"subscriptions","confidence":0.95}}
-"CARTE 05/03 CARREFOUR"    → {{"cleaned_label":"Carrefour","merchant_name":"Carrefour","category":"food","confidence":0.95}}
-"VIR SEPA SALAIRE MARS"    → {{"cleaned_label":"Salaire","merchant_name":"Salaire","category":"income","confidence":0.97}}
-
-Réponds UNIQUEMENT avec ce JSON :
-{{"cleaned_label":"…","merchant_name":"…","category":"…","confidence":0.95}}""",
+                "content": build_normalization_user_prompt(raw_label),
             },
         ]
 

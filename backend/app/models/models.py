@@ -78,6 +78,10 @@ class User(UserBase, table=True):
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    enrichment_rules: list["EnrichmentRule"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class UserPublic(UserBase):
@@ -274,6 +278,28 @@ class TransactionCreate(TransactionBase):
 
     credential_id: UUID
     transaction_key: str
+
+
+class EnrichmentRule(SQLModel, table=True):
+    """User-owned enrichment memory used to improve future classifications."""
+
+    __tablename__ = "enrichment_rules"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    label_fingerprint: str = Field(index=True, max_length=255)
+    merchant_name: Optional[str] = Field(default=None)
+    cleaned_label: str = Field(max_length=255)
+    category: TransactionCategory = Field(default=TransactionCategory.OTHER)
+    usage_count: int = Field(default=1)
+    learned_from_transaction_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="transactions.id",
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship(back_populates="enrichment_rules")
 
 
 # endregion

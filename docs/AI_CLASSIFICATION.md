@@ -8,6 +8,7 @@ Budget Bo utilise Ollama avec le modèle Phi3 pour classifier automatiquement le
 - **Extraire les marchands** : Identifier automatiquement le nom du commerçant
 - **Catégoriser** : Assigner une catégorie (food, transportation, entertainment, etc.)
 - **Calculer la confiance** : Score de 0.0 à 1.0 indiquant la fiabilité de la classification
+- **Apprendre des corrections utilisateur** : Les corrections sont mémorisées et réutilisées automatiquement
 
 ## Configuration
 
@@ -50,6 +51,20 @@ curl -X POST "http://localhost:8000/transactions/enrich?days_back=30" \
 
 # Via le script (pour tests)
 docker compose exec backend python scripts/enrich_transactions.py
+```
+
+
+### Correction utilisateur + apprentissage
+
+Si une classification est incorrecte, l'utilisateur peut corriger la transaction.
+Le backend crée/met à jour une règle d'enrichissement pour réutiliser ce choix
+la prochaine fois qu'un libellé similaire est rencontré.
+
+```bash
+curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
+  -H "Content-Type: application/json" \
+  -d '{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions"}' \
+  -b cookies.txt
 ```
 
 ### Catégories disponibles

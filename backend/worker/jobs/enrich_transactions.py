@@ -4,11 +4,15 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from celery import Task
-from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import select
 
 from app.core.database import get_worker_session
 from app.models.models import Transaction, TransactionCategory
+from app.services.enrichment_memory import (
+    apply_rule_to_transaction,
+    get_rule_for_label,
+    upsert_rule_from_transaction,
+)
 from app.services.ollama import OllamaService
 from worker.celery_app import celery_app
 
@@ -41,13 +45,21 @@ def enrich_single_transaction(
         raw_label = tx.raw_label  # lu avant tout appel externe
 
         try:
-            normalization = OllamaService().normalize_label(raw_label)
+            learned_rule = get_rule_for_label(session, tx.user_id, raw_label)
 
-            tx.cleaned_label = normalization["cleaned_label"]
-            tx.merchant_name = normalization["merchant_name"]
-            tx.ai_confidence = normalization["confidence"]
-            tx.category      = _map_category(normalization["category"])
-            tx.enriched_at   = datetime.utcnow()
+            if learned_rule is not None:
+                apply_rule_to_transaction(tx, learned_rule)
+                learned_rule.usage_count += 1
+                learned_rule.updated_at = datetime.utcnow()
+            else:
+                normalization = OllamaService().normalize_label(raw_label)
+
+                tx.cleaned_label = normalization["cleaned_label"]
+                tx.merchant_name = normalization["merchant_name"]
+                tx.ai_confidence = normalization["confidence"]
+                tx.category = _map_category(normalization["category"])
+                tx.enriched_at = datetime.utcnow()
+                upsert_rule_from_transaction(session, tx)
 
             session.commit()
 
