@@ -6,18 +6,13 @@ from typing import Any
 import ollama
 
 from app.core.config import get_settings
+from app.services.ai_constants import VALID_CATEGORIES
+from app.services.ollama_prompts import (
+    build_normalization_system_prompt,
+    build_normalization_user_prompt,
+)
 
 settings = get_settings()
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-VALID_CATEGORIES = frozenset({
-    "housing", "transportation", "food", "utilities", "healthcare",
-    "entertainment", "shopping", "subscriptions", "income",
-    "insurance", "education", "travel", "other",
-})
 
 # ---------------------------------------------------------------------------
 # Tool definition exposed to the LLM
@@ -92,8 +87,10 @@ class OllamaService:
 
     def __init__(self, host: str | None = None, model: str | None = None) -> None:
         self.model = model or settings.ollama_model
-        print(self.model)
-        self.client = ollama.Client(host=host or settings.ollama_base_url)
+        self.client = ollama.Client(
+            host=host or settings.ollama_base_url,
+            timeout=max(10, settings.ollama_timeout),
+        )
 
     # ------------------------------------------------------------------
     # Core: agentic loop with tool calling (sync)
@@ -111,16 +108,20 @@ class OllamaService:
         2. Si le modèle appelle un outil → exécute → renvoie le résultat → boucle
         3. Retourne la réponse finale en texte
         """
-        options = {"temperature": temperature, "num_predict": 512}
+        options = {"temperature": temperature, "num_predict": 256}
 
-        for _ in range(5):  # max 5 tool-call rounds
-            response = self.client.chat(
-                model=self.model,
-                messages=messages,
-                tools=tools or [],
-                format="json",
-                options=options,
-            )
+        for _ in range(3):  # max 3 tool-call rounds to keep latency bounded
+            try:
+                response = self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or [],
+                    format="json",
+                    options=options,
+                )
+            except Exception:
+                return "{}"
+
             message = response.message
 
             # Model wants to call a tool
@@ -151,35 +152,11 @@ class OllamaService:
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "Tu es un expert en analyse de relevés bancaires français. "
-                    "Tu réponds UNIQUEMENT en JSON valide. "
-                    "Si tu ne reconnais pas le commerçant, utilise l'outil web_search."
-                ),
+                "content": build_normalization_system_prompt(),
             },
             {
                 "role": "user",
-                "content": f"""Analyse ce libellé bancaire et extrais le nom du commerçant + catégorie.
-
-LIBELLÉ : "{raw_label}"
-
-RÈGLES :
-- Supprimer : CARTE, CB, PRLV, PRLVM, PRELEVEMENT, SEPA, VIR, codes X1234, refs /REF…
-- Supprimer les villes en fin de libellé (PARIS, LYON…)
-- "BOUCH."→Boucherie | "PHARM."→Pharmacie | "ELECTRO."→Électronique
-- Virement entrant / SALAIRE → category "income"
-- Si tu ne reconnais pas le commerçant → utilise web_search avant de répondre
-
-Catégories valides : {", ".join(sorted(VALID_CATEGORIES))}
-
-Exemples :
-"PRLVM SEPA NETFLIX.COM"   → {{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions","confidence":0.98}}
-"X7722 CANAL PLUS FR ISSY" → {{"cleaned_label":"Canal+","merchant_name":"Canal+","category":"subscriptions","confidence":0.95}}
-"CARTE 05/03 CARREFOUR"    → {{"cleaned_label":"Carrefour","merchant_name":"Carrefour","category":"food","confidence":0.95}}
-"VIR SEPA SALAIRE MARS"    → {{"cleaned_label":"Salaire","merchant_name":"Salaire","category":"income","confidence":0.97}}
-
-Réponds UNIQUEMENT avec ce JSON :
-{{"cleaned_label":"…","merchant_name":"…","category":"…","confidence":0.95}}""",
+                "content": build_normalization_user_prompt(raw_label),
             },
         ]
 
@@ -199,7 +176,7 @@ Réponds UNIQUEMENT avec ce JSON :
         messages = [
             {
                 "role": "system",
-                "content": "Tu es un expert en analyse de relevés bancaires français. Tu réponds UNIQUEMENT en JSON valide.",
+                "content": "Tu es un expert en analyse de relevés bancaires français. Tu réponds UNIQUEMENT en JSON valide. Si un marchand est ambigu ou peu connu, utilise web_search avant de catégoriser.",
             },
             {
                 "role": "user",
@@ -210,8 +187,14 @@ Montant : {amount} EUR ({direction})
 {hint}Catégories valides : {", ".join(sorted(VALID_CATEGORIES))}
 
 Règles :
-- Virement entrant / SALAIRE → "income"
-- Remboursement montant positif → "income"
+- "income" UNIQUEMENT si indice explicite: salaire, paie, remboursement, allocation, virement entrant
+- Un montant positif seul NE SUFFIT PAS pour classer en "income"
+- Supermarchés -> "groceries"
+- Restaurants/snack/livraison repas -> "dining"
+- Station essence / péage / transport -> "transportation"
+- Bricolage / ameublement -> "home_improvement"
+- Évite "shopping" si une catégorie plus précise existe
+- Si le secteur d'activité n'est pas clair, utilise web_search avant de trancher
 
 JSON attendu :
 {{"category":"…","reasoning":"…","is_expense":true,"confidence":0.95}}""",
@@ -287,10 +270,17 @@ def _safe_category(value: Any) -> str:
 
 
 def _validate_normalize(result: dict, raw_label: str) -> dict[str, Any]:
-    cleaned = result.get("cleaned_label", raw_label).strip()
+    candidate_cleaned = str(result.get("cleaned_label", "")).strip()
+    if candidate_cleaned.lower() == raw_label.strip().lower():
+        candidate_cleaned = ""
+
+    candidate_merchant = str(result.get("merchant_name", "")).strip()
+    if candidate_merchant.lower() == raw_label.strip().lower():
+        candidate_merchant = ""
+
     return {
-        "cleaned_label": cleaned,
-        "merchant_name": result.get("merchant_name", cleaned).strip(),
+        "cleaned_label": candidate_cleaned,
+        "merchant_name": candidate_merchant,
         "category": _safe_category(result.get("category")),
         "confidence": float(result.get("confidence", 0.5)),
     }

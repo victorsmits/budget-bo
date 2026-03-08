@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import SQLModel
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,9 +18,19 @@ from app.models.models import (
     TransactionPublic,
     User,
 )
+from app.services.enrichment_memory import upsert_rule_from_transaction_async
 from app.models.pagination import PaginatedResponse, PaginationParams
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+class TransactionEnrichmentCorrection(SQLModel):
+    """User correction payload for transaction enrichment."""
+
+    cleaned_label: str | None = None
+    merchant_name: str | None = None
+    category: TransactionCategory | None = None
+    is_expense: bool | None = None
 
 
 async def get_session() -> AsyncSession:
@@ -199,6 +210,7 @@ async def update_category(
         )
 
     transaction.category = category
+    await upsert_rule_from_transaction_async(session, transaction)
     await session.commit()
     await session.refresh(transaction)
 
@@ -283,6 +295,45 @@ async def enrich_transaction(
     # For now, return the transaction as-is
     # In a real implementation, you might want to return a job ID
     # and poll for completion
+    return TransactionPublic.model_validate(transaction)
+
+
+@router.patch("/{transaction_id}/correction", response_model=TransactionPublic)
+async def correct_enrichment(
+    transaction_id: UUID,
+    payload: TransactionEnrichmentCorrection,
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> TransactionPublic:
+    """Apply user correction and learn for future transaction enrichment."""
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == user.id,
+        )
+    )
+    transaction = result.scalar_one_or_none()
+
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found",
+        )
+
+    if payload.cleaned_label is not None:
+        transaction.cleaned_label = payload.cleaned_label
+    if payload.merchant_name is not None:
+        transaction.merchant_name = payload.merchant_name
+    if payload.category is not None:
+        transaction.category = payload.category
+    if payload.is_expense is not None:
+        transaction.is_expense = payload.is_expense
+
+    transaction.ai_category_reasoning = "Corrected by user"
+    await upsert_rule_from_transaction_async(session, transaction)
+    await session.commit()
+    await session.refresh(transaction)
+
     return TransactionPublic.model_validate(transaction)
 
 
