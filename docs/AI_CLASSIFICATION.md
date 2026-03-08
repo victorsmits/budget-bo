@@ -81,6 +81,7 @@ curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
 - `food` - Alimentation (générique)
 - `groceries` - Courses / supermarché
 - `dining` - Restaurant / snack / livraison repas
+- `drinking` - Bar / pub / café / boissons
 - `utilities` - Factures (électricité, eau, etc.)
 - `healthcare` - Santé
 - `entertainment` - Divertissement

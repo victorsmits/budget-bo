@@ -109,21 +109,14 @@ def test_pipeline_triggers_second_pass_when_ambiguous() -> None:
     assert "llm_categorization" in result.reasoning
 
 
-def test_pipeline_forces_public_resolution_for_terminal_codes() -> None:
+def test_pipeline_uses_alias_for_arcadya_terminal_label() -> None:
     service = FakeOllamaService(
         normalization={
-            "cleaned_label": "",
+            "cleaned_label": "X7722 ARCADYA GARONNE TOUL",
             "merchant_name": "Arcadya Garonne Toul",
-            "category": "entertainment",
+            "category": "shopping",
             "confidence": 0.95,
-        },
-        resolution={
-            "merchant_name": "L'esprit Toulousain",
-            "cleaned_label": "L'esprit Toulousain",
-            "category": "dining",
-            "confidence": 0.78,
-            "reasoning": "enseigne publique visible dans les résultats locaux",
-        },
+        }
     )
 
     result = run_enrichment_pipeline(
@@ -133,26 +126,19 @@ def test_pipeline_forces_public_resolution_for_terminal_codes() -> None:
         ollama_service=service,  # type: ignore[arg-type]
     )
 
-    assert service.resolve_calls == 1
-    assert result.merchant_name == "L'esprit Toulousain"
-    assert result.cleaned_label == "L'esprit Toulousain"
+    assert service.resolve_calls == 0
+    assert result.cleaned_label == "Esprit Toulousain"
+    assert result.category.value == "drinking"
 
 
-def test_pipeline_penalizes_confidence_when_name_is_opaque() -> None:
+def test_pipeline_uses_alias_for_ligimida_terminal_label() -> None:
     service = FakeOllamaService(
         normalization={
             "cleaned_label": "",
             "merchant_name": "Ligimida",
             "category": "shopping",
             "confidence": 0.95,
-        },
-        resolution={
-            "merchant_name": "",
-            "cleaned_label": "",
-            "category": "other",
-            "confidence": 0.2,
-            "reasoning": "insufficient public evidence",
-        },
+        }
     )
 
     result = run_enrichment_pipeline(
@@ -162,5 +148,6 @@ def test_pipeline_penalizes_confidence_when_name_is_opaque() -> None:
         ollama_service=service,  # type: ignore[arg-type]
     )
 
-    assert service.resolve_calls == 1
-    assert result.confidence < 0.8
+    assert service.resolve_calls == 0
+    assert result.cleaned_label == "Grabuge"
+    assert result.category.value == "food"

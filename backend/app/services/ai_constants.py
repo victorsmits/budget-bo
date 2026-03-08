@@ -6,6 +6,7 @@ VALID_CATEGORIES = frozenset({
     "food",
     "groceries",
     "dining",
+    "drinking",
     "utilities",
     "healthcare",
     "entertainment",

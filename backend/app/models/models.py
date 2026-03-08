@@ -31,6 +31,7 @@ class TransactionCategory(str, Enum):
     ENTERTAINMENT = "entertainment"
     GROCERIES = "groceries"
     DINING = "dining"
+    DRINKING = "drinking"
     SHOPPING = "shopping"
     HOME_IMPROVEMENT = "home_improvement"
     SUBSCRIPTIONS = "subscriptions"
