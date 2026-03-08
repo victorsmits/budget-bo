@@ -16,6 +16,7 @@ interface Transaction {
   id: string
   cleaned_label: string | null
   raw_label: string
+  merchant_name?: string | null
   amount: number
   date: string
   category: string
@@ -109,7 +110,7 @@ export default function TransactionsPage() {
   }, [])
 
   const filteredTransactions = transactions.filter((tx) => {
-    const matchesSearch = (tx.cleaned_label || tx.raw_label).toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = (tx.cleaned_label || tx.merchant_name || tx.raw_label).toLowerCase().includes(searchQuery.toLowerCase())
     const matchesType = transactionType === "all" ||
       (transactionType === "expense" && tx.is_expense) ||
       (transactionType === "income" && !tx.is_expense)
@@ -122,7 +123,7 @@ export default function TransactionsPage() {
     const headers = ["Date", "Libellé", "Catégorie", "Type", "Montant", "Devise"]
     const rows = filteredTransactions.map((tx) => [
       tx.date,
-      `"${(tx.cleaned_label || tx.raw_label).replace(/"/g, '""')}"`,
+      `"${(tx.cleaned_label || tx.merchant_name || tx.raw_label).replace(/"/g, '""')}"`,
       categoryLabels[tx.category] || tx.category,
       tx.is_expense ? "Dépense" : "Revenu",
       tx.is_expense ? -tx.amount : tx.amount,
@@ -279,7 +280,7 @@ export default function TransactionsPage() {
                         <td className="p-4 align-middle">
                           <Link href={`/transactions/${tx.id}`} className="block">
                             <div>
-                              <p className="font-medium">{tx.cleaned_label || tx.raw_label}</p>
+                              <p className="font-medium">{tx.cleaned_label || tx.merchant_name || tx.raw_label}</p>
                               {tx.cleaned_label && tx.cleaned_label !== tx.raw_label && (
                                 <p className="text-xs text-muted-foreground">{tx.raw_label}</p>
                               )}

@@ -54,7 +54,7 @@ export default function TransactionDetailPage() {
   useEffect(() => {
     if (!transaction) return
 
-    setCleanedLabel(transaction.cleaned_label || transaction.raw_label)
+    setCleanedLabel(transaction.cleaned_label || transaction.merchant_name || "")
     setMerchantName(transaction.merchant_name || "")
     setSelectedCategory(transaction.category || "other")
     setSelectedType(transaction.is_expense ? "expense" : "income")
@@ -136,8 +136,8 @@ export default function TransactionDetailPage() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Libellé</p>
-                  <p className="text-base">{transaction.cleaned_label || transaction.raw_label}</p>
-                  {transaction.cleaned_label && transaction.cleaned_label !== transaction.raw_label && (
+                  <p className="text-base">{transaction.cleaned_label || transaction.merchant_name || transaction.raw_label}</p>
+                  {(transaction.cleaned_label || transaction.merchant_name) && (transaction.cleaned_label || transaction.merchant_name) !== transaction.raw_label && (
                     <p className="mt-1 text-sm text-muted-foreground">Original: {transaction.raw_label}</p>
                   )}
                 </div>
