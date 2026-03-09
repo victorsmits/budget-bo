@@ -1,6 +1,6 @@
 "use client"
 
-import { Building2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { Building2, Info, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 import DashboardLayout from "../dashboard-layout"
@@ -29,6 +29,14 @@ const BANK_LABELS: Record<string, string> = {
   creditmutuel: "Crédit Mutuel",
 }
 
+const CRAGR_WEBSITES = [
+  { value: "ca-paris", label: "Île-de-France" },
+  { value: "ca-nord", label: "Nord de France" },
+  { value: "ca-aquitaine", label: "Aquitaine" },
+  { value: "ca-provencecotedazur", label: "Provence Côte d’Azur" },
+  { value: "ca-alsacevosges", label: "Alsace Vosges" },
+]
+
 const BANK_OPTIONS = Object.entries(BANK_LABELS).map(([value, label]) => ({ value, label }))
 
 export default function CredentialsPage() {
@@ -40,17 +48,25 @@ export default function CredentialsPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState({ bank_name: "cragr", bank_label: "", login: "", password: "" })
+  const [form, setForm] = useState({
+    bank_name: "cragr",
+    bank_label: "",
+    bank_website: "",
+    login: "",
+    password: "",
+  })
+
+  const isCragr = form.bank_name === "cragr"
 
   const reset = () => {
     setShowForm(false)
     setEditingId(null)
-    setForm({ bank_name: "cragr", bank_label: "", login: "", password: "" })
+    setForm({ bank_name: "cragr", bank_label: "", bank_website: "", login: "", password: "" })
   }
 
   const submit = () => {
-    if (!form.login.trim() && !editingId) return
-    if (!form.password.trim() && !editingId) return
+    if (!editingId && (!form.login.trim() || !form.password.trim())) return
+    if (isCragr && !form.bank_website.trim()) return
 
     if (editingId) {
       updateCredential.mutate({
@@ -58,6 +74,7 @@ export default function CredentialsPage() {
         data: {
           bank_name: form.bank_name,
           bank_label: form.bank_label || undefined,
+          bank_website: form.bank_website || undefined,
           login: form.login || undefined,
           password: form.password || undefined,
         },
@@ -66,6 +83,7 @@ export default function CredentialsPage() {
       createCredential.mutate({
         bank_name: form.bank_name,
         bank_label: form.bank_label || undefined,
+        bank_website: form.bank_website || undefined,
         login: form.login,
         password: form.password,
       })
@@ -88,55 +106,89 @@ export default function CredentialsPage() {
             <CardHeader>
               <CardTitle>{editingId ? "Modifier un compte" : "Nouveau compte bancaire"}</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Banque</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={form.bank_name}
-                  onChange={(e) => setForm((s) => ({ ...s, bank_name: e.target.value }))}
-                >
-                  {BANK_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+            <CardContent className="space-y-4 p-4">
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                <p className="flex items-center gap-2 font-medium text-foreground">
+                  <ShieldCheck className="size-4" /> Informations importantes
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  <li>Vos identifiants sont chiffrés côté serveur.</li>
+                  <li>Pour Crédit Agricole, la région est obligatoire.</li>
+                  <li>En mode édition, laisser identifiant/mot de passe vide conserve les valeurs actuelles.</li>
+                </ul>
               </div>
 
-              <div className="space-y-2">
-                <Label>Nom affiché (optionnel)</Label>
-                <Input
-                  placeholder="Ex: Compte principal"
-                  value={form.bank_label}
-                  onChange={(e) => setForm((s) => ({ ...s, bank_label: e.target.value }))}
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Banque</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.bank_name}
+                    onChange={(e) => setForm((s) => ({ ...s, bank_name: e.target.value, bank_website: "" }))}
+                  >
+                    {BANK_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nom affiché (optionnel)</Label>
+                  <Input
+                    placeholder="Ex: Compte principal"
+                    value={form.bank_label}
+                    onChange={(e) => setForm((s) => ({ ...s, bank_label: e.target.value }))}
+                  />
+                </div>
+
+                {isCragr && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Région Crédit Agricole</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={form.bank_website}
+                      onChange={(e) => setForm((s) => ({ ...s, bank_website: e.target.value }))}
+                    >
+                      <option value="">Sélectionner votre région</option>
+                      {CRAGR_WEBSITES.map((site) => (
+                        <option key={site.value} value={site.value}>
+                          {site.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">Cette information est requise pour connecter certains accès CA.</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Identifiant bancaire {editingId ? "(optionnel en édition)" : ""}</Label>
+                  <Input
+                    placeholder="Votre identifiant"
+                    value={form.login}
+                    onChange={(e) => setForm((s) => ({ ...s, login: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Mot de passe {editingId ? "(optionnel en édition)" : ""}</Label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Identifiant bancaire {editingId ? "(optionnel en édition)" : ""}</Label>
-                <Input
-                  placeholder="Votre identifiant"
-                  value={form.login}
-                  onChange={(e) => setForm((s) => ({ ...s, login: e.target.value }))}
-                />
+              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                <p className="flex items-center gap-2"><Info className="size-3.5" /> Après création, cliquez sur <strong>Sync</strong> pour lancer la première synchronisation.</p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Mot de passe {editingId ? "(optionnel en édition)" : ""}</Label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-                />
-              </div>
-
-              <div className="flex gap-2 md:col-span-2">
+              <div className="flex gap-2">
                 <Button onClick={submit}>{editingId ? "Mettre à jour" : "Enregistrer"}</Button>
-                <Button variant="outline" onClick={reset}>
-                  Annuler
-                </Button>
+                <Button variant="outline" onClick={reset}>Annuler</Button>
               </div>
             </CardContent>
           </Card>
@@ -167,6 +219,7 @@ export default function CredentialsPage() {
                       setForm({
                         bank_name: credential.bank_name,
                         bank_label: credential.bank_label || "",
+                        bank_website: credential.bank_website || "",
                         login: "",
                         password: "",
                       })
