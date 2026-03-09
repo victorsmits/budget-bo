@@ -1,16 +1,5 @@
-import { Sidebar } from "@/components/sidebar"
+import { AppShell } from "@/components/app-shell"
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-4 md:p-8 pt-20 md:pt-8">
-        {children}
-      </main>
-    </div>
-  )
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return <AppShell>{children}</AppShell>
 }

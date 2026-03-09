@@ -2,296 +2,89 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Download, Filter, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react"
 
 import DashboardLayout from "../dashboard-layout"
-import { ErrorCard } from "@/components/error"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/page-header"
 import { CategoryBadge } from "@/components/transactions/category-badge"
 import { CategorySelect } from "@/components/transactions/category-select"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
-import {
-  getCategoryLabel,
-  getTransactionDisplayLabel,
-} from "@/lib/transaction-presentation"
-import { cn } from "@/lib/utils"
+import { getCategoryLabel, getTransactionDisplayLabel } from "@/lib/transaction-presentation"
 import { Transaction } from "@/types/api"
 
-type TransactionTypeFilter = "all" | "expense" | "income"
-
-interface PaginationState {
-  page: number
-  size: number
-  total: number
-  pages: number
-  has_next: boolean
-  has_prev: boolean
-}
-
-const INITIAL_PAGINATION: PaginationState = {
-  page: 1,
-  size: 20,
-  total: 0,
-  pages: 0,
-  has_next: false,
-  has_prev: false,
-}
-
 export default function TransactionsPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [pagination, setPagination] = useState<PaginationState>(INITIAL_PAGINATION)
-  const [selectedCategory, setSelectedCategory] = useState("")
-  const [transactionType, setTransactionType] = useState<TransactionTypeFilter>("all")
-  const [showFilters, setShowFilters] = useState(false)
-
-  const fetchTransactions = async (page = 1, category = selectedCategory) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const data = await api.transactions.list({
-        page,
-        size: pagination.size,
-        ...(category ? { category } : {}),
-      })
-
-      setTransactions(data.items || [])
-      setPagination({
-        page: data.page || 1,
-        size: data.size || INITIAL_PAGINATION.size,
-        total: data.total || 0,
-        pages: data.pages || 0,
-        has_next: data.has_next || false,
-        has_prev: data.has_prev || false,
-      })
-    } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Erreur lors du chargement")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [items, setItems] = useState<Transaction[]>([])
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [search, setSearch] = useState("")
+  const [category, setCategory] = useState("")
 
   useEffect(() => {
-    fetchTransactions(1, selectedCategory)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory])
-
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((transaction) => {
-      const matchesSearch = getTransactionDisplayLabel(transaction)
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase())
-
-      const matchesType =
-        transactionType === "all" ||
-        (transactionType === "expense" && transaction.is_expense) ||
-        (transactionType === "income" && !transaction.is_expense)
-
-      return matchesSearch && matchesType
+    api.transactions.list({ page, size: 20, ...(category ? { category } : {}) }).then((data) => {
+      setItems(data.items || [])
+      setPages(data.pages || 1)
+      setTotal(data.total || 0)
     })
-  }, [transactions, searchQuery, transactionType])
+  }, [page, category])
 
-  const resetFilters = () => {
-    setSelectedCategory("")
-    setTransactionType("all")
-    setSearchQuery("")
-  }
+  const filtered = useMemo(() => items.filter((t) => getTransactionDisplayLabel(t).toLowerCase().includes(search.toLowerCase())), [items, search])
 
-  const handleExportCSV = () => {
-    if (filteredTransactions.length === 0) return
-
-    const headers = ["Date", "Libellé", "Catégorie", "Type", "Montant", "Devise"]
-    const rows = filteredTransactions.map((transaction) => [
-      transaction.date,
-      `"${getTransactionDisplayLabel(transaction).replace(/"/g, '""')}"`,
-      getCategoryLabel(transaction.category),
-      transaction.is_expense ? "Dépense" : "Revenu",
-      transaction.is_expense ? -transaction.amount : transaction.amount,
-      transaction.currency || "EUR",
-    ])
-
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-
-    link.setAttribute("href", url)
-    link.setAttribute("download", `transactions_${new Date().toISOString().split("T")[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  if (error) {
-    return (
-      <DashboardLayout>
-        <ErrorCard title="Erreur de chargement" description={error} retry={() => fetchTransactions(1)} />
-      </DashboardLayout>
-    )
+  const exportCSV = () => {
+    const csv = [["Date", "Libellé", "Catégorie", "Montant"], ...filtered.map((t) => [t.date, getTransactionDisplayLabel(t), getCategoryLabel(t.category), `${t.is_expense ? "-" : "+"}${t.amount}`])]
+      .map((r) => r.join(","))
+      .join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const a = document.createElement("a")
+    a.href = URL.createObjectURL(blob)
+    a.download = `transactions_${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-            <p className="text-muted-foreground">Historique ({pagination.total} transactions)</p>
-          </div>
-          <Button variant="outline" onClick={handleExportCSV} disabled={filteredTransactions.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-        </div>
+      <div className="space-y-4">
+        <PageHeader title="Transactions" subtitle={`${total} opérations synchronisées`} />
 
         <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-4">
-              <div className="relative max-w-sm flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher un libellé ou marchand..."
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
+          <CardContent className="space-y-3 p-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Recherche rapide" />
               </div>
-
-              <Button variant="outline" size="sm" onClick={() => setShowFilters((value) => !value)}>
-                <Filter className="mr-2 h-4 w-4" />
-                Filtres
-              </Button>
+              <CategorySelect value={category} onChange={(v) => { setCategory(v); setPage(1) }} includeAllOption />
+              <Button variant="outline" onClick={exportCSV} disabled={!filtered.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
             </div>
 
-            {showFilters && (
-              <div className="mt-4 flex flex-wrap items-center gap-4 rounded-md border bg-muted/20 p-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Catégorie:</span>
-                  <div className="w-44">
-                    <CategorySelect value={selectedCategory} onChange={setSelectedCategory} includeAllOption />
+            <div className="space-y-2">
+              {filtered.map((t) => (
+                <Link key={t.id} href={`/transactions/${t.id}`} className="block rounded-xl border p-3 hover:bg-muted/40">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{getTransactionDisplayLabel(t)}</p>
+                      <p className="text-xs text-muted-foreground">{t.date}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CategoryBadge category={t.category} />
+                      <p className={t.is_expense ? "font-semibold text-rose-600" : "font-semibold text-emerald-600"}>{t.is_expense ? "-" : "+"}{Number(t.amount).toFixed(2)} €</p>
+                    </div>
                   </div>
-                </div>
+                </Link>
+              ))}
+              {!filtered.length && <p className="py-8 text-center text-sm text-muted-foreground">Aucune transaction.</p>}
+            </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Type:</span>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                    value={transactionType}
-                    onChange={(event) => setTransactionType(event.target.value as TransactionTypeFilter)}
-                  >
-                    <option value="all">Tous</option>
-                    <option value="expense">Dépenses</option>
-                    <option value="income">Revenus</option>
-                  </select>
-                </div>
-
-                {(selectedCategory || transactionType !== "all" || searchQuery) && (
-                  <Button variant="ghost" size="sm" onClick={resetFilters}>
-                    Réinitialiser
-                  </Button>
-                )}
+            <div className="flex items-center justify-between border-t pt-3">
+              <p className="text-sm text-muted-foreground">Page {page}/{pages}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft className="size-4" /></Button>
+                <Button variant="outline" size="icon" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}><ChevronRight className="size-4" /></Button>
               </div>
-            )}
-          </CardHeader>
-
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Skeleton key={index} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : transactions.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground">
-                <p>Aucune transaction.</p>
-                <p className="text-sm">Lancez une synchronisation bancaire.</p>
-              </div>
-            ) : (
-              <div className="relative w-full overflow-auto">
-                <table className="w-full caption-bottom text-sm">
-                  <thead className="[&_tr]:border-b">
-                    <tr className="border-b">
-                      <th className="h-12 px-4 text-left font-medium text-muted-foreground">Date</th>
-                      <th className="h-12 px-4 text-left font-medium text-muted-foreground">Libellé</th>
-                      <th className="h-12 px-4 text-left font-medium text-muted-foreground">Catégorie</th>
-                      <th className="h-12 px-4 text-right font-medium text-muted-foreground">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.map((transaction) => {
-                      const displayLabel = getTransactionDisplayLabel(transaction)
-                      return (
-                        <tr key={transaction.id} className="border-b hover:bg-muted/50">
-                          <td className="p-4 align-middle">
-                            <Link href={`/transactions/${transaction.id}`} className="block">
-                              {transaction.date}
-                            </Link>
-                          </td>
-                          <td className="p-4 align-middle">
-                            <Link href={`/transactions/${transaction.id}`} className="block">
-                              <div>
-                                <p className="font-medium">{displayLabel}</p>
-                                {displayLabel !== transaction.raw_label && (
-                                  <p className="text-xs text-muted-foreground">{transaction.raw_label}</p>
-                                )}
-                              </div>
-                            </Link>
-                          </td>
-                          <td className="p-4 align-middle">
-                            <Link href={`/transactions/${transaction.id}`} className="block">
-                              <CategoryBadge category={transaction.category} />
-                            </Link>
-                          </td>
-                          <td
-                            className={cn(
-                              "p-4 text-right align-middle font-medium",
-                              transaction.is_expense ? "text-red-600" : "text-green-600",
-                            )}
-                          >
-                            <Link href={`/transactions/${transaction.id}`} className="block">
-                              {transaction.is_expense ? "-" : "+"}
-                              {Number(transaction.amount).toFixed(2)} {transaction.currency || "EUR"}
-                            </Link>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {pagination.pages > 1 && (
-              <div className="mt-4 flex items-center justify-between border-t pt-4">
-                <p className="text-sm text-muted-foreground">
-                  Page {pagination.page} sur {pagination.pages} ({pagination.total} transactions)
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fetchTransactions(pagination.page - 1)}
-                    disabled={!pagination.has_prev || isLoading}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fetchTransactions(pagination.page + 1)}
-                    disabled={!pagination.has_next || isLoading}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>
