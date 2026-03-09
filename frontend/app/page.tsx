@@ -1,9 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { ArrowDown, ArrowUp, Landmark, Repeat2 } from "lucide-react"
 
 import DashboardLayout from "./dashboard-layout"
 import { ErrorCard } from "@/components/error"
+import { CategoryBadge } from "@/components/transactions/category-badge"
 import { PageHeader } from "@/components/page-header"
 import { KpiCard } from "@/components/kpi-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,10 +29,10 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-6">
         <PageHeader
           title="Vue d'ensemble"
-          subtitle="Une nouvelle expérience claire et actionnable, alimentée uniquement par l'API existante."
+          subtitle="Synthèse de vos finances depuis l'API existante."
           action={() => credentials?.[0] && syncCredential.mutate(credentials[0].id)}
           actionLabel={syncCredential.isPending ? "Synchronisation..." : "Synchroniser ma banque"}
           actionLoading={syncCredential.isPending || !credentials?.length}
@@ -43,30 +45,47 @@ export default function DashboardPage() {
           <KpiCard title="Récurrences" value={String(upcomingRecurring?.length ?? 0)} icon={<Repeat2 className="size-4" />} />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Dernières transactions</CardTitle></CardHeader>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Dernières transactions</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2">
               {recentTransactions?.map((t) => (
-                <div key={t.id} className="rounded-lg border p-3">
-                  <p className="font-medium">{getTransactionDisplayLabel(t)}</p>
-                  <p className="text-xs text-muted-foreground">{t.date} • {t.is_expense ? "Dépense" : "Revenu"}</p>
-                </div>
+                <Link key={t.id} href={`/transactions/${t.id}`} className="block rounded-lg border p-3 hover:bg-muted/40">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{getTransactionDisplayLabel(t)}</p>
+                      <p className="text-xs text-muted-foreground">{t.date} • {t.is_expense ? "Dépense" : "Revenu"}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CategoryBadge category={t.category} linkTo={`/transactions?category=${encodeURIComponent(t.category || "")}`} />
+                      <p className={t.is_expense ? "font-semibold text-rose-600" : "font-semibold text-emerald-600"}>
+                        {t.is_expense ? "-" : "+"}{money(t.amount)}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
               ))}
               {!recentTransactions?.length && <p className="text-sm text-muted-foreground">Aucune transaction récente.</p>}
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Échéances à venir</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Dépenses par catégorie</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-2">
-              {upcomingRecurring?.map((item) => (
-                <div key={item.id} className="rounded-lg border p-3">
-                  <p className="font-medium">{item.pattern_name}</p>
-                  <p className="text-xs text-muted-foreground">{money(item.average_amount)} • {item.next_expected_date || "Date inconnue"}</p>
+              {summary?.by_category?.slice(0, 8).map((c: { category: string; total: number; count: number }) => (
+                <div key={c.category} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                  <CategoryBadge category={c.category} linkTo={`/transactions?category=${encodeURIComponent(c.category)}`} />
+                  <div className="text-right">
+                    <p className="text-sm font-medium">{money(c.total)}</p>
+                    <p className="text-xs text-muted-foreground">{c.count} opérations</p>
+                  </div>
                 </div>
               ))}
-              {!upcomingRecurring?.length && <p className="text-sm text-muted-foreground">Aucune échéance détectée.</p>}
+              {!summary?.by_category?.length && <p className="text-sm text-muted-foreground">Aucune donnée de catégorie.</p>}
             </CardContent>
           </Card>
         </div>
