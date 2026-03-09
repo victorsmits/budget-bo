@@ -77,7 +77,7 @@ export default function TransactionsPage() {
               <Button variant="outline" onClick={exportCSV} disabled={!filtered.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
             </div>
 
-            <div className="space-y-2">
+            <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
               {filtered.map((t) => (
                 <Link key={t.id} href={`/transactions/${t.id}`} className="block rounded-xl border p-3 hover:bg-muted/40">
                   <div className="flex flex-wrap items-center justify-between gap-2">

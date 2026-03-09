@@ -163,7 +163,7 @@ export default function TransactionDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Catégorie</p>
-                    <CategoryBadge category={transaction.category || "other"} className="mt-1" />
+                    <CategoryBadge category={transaction.category || "other"} className="mt-1" linkTo={`/transactions?category=${encodeURIComponent(transaction.category || "")}`} />
                   </div>
                 </div>
 
