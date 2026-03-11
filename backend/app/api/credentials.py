@@ -213,7 +213,7 @@ async def trigger_sync(
     # Queue sync job via Celery
     sync_job = sync_credential_transactions.delay(
         str(credential_id),
-        days_back=30,
+        days_back=365,
     )
 
     # Also queue enrichment job for this user's transactions

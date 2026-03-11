@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, Numeric, String
@@ -65,23 +65,23 @@ class User(UserBase, table=True):
     encryption_key_salt: Optional[str] = None
 
     # Relationships
-    bank_credentials: list["BankCredential"] = Relationship(
+    bank_credentials: List["BankCredential"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    bank_accounts: list["BankAccount"] = Relationship(
+    bank_accounts: List["BankAccount"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    transactions: list["Transaction"] = Relationship(
+    transactions: List["Transaction"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    recurring_expenses: list["RecurringExpense"] = Relationship(
+    recurring_expenses: List["RecurringExpense"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    enrichment_rules: list["EnrichmentRule"] = Relationship(
+    enrichment_rules: List["EnrichmentRule"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -237,6 +237,9 @@ class Transaction(TransactionBase, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(foreign_key="users.id", index=True)
     credential_id: UUID = Field(foreign_key="bank_credentials.id", index=True)
+    recurring_expense_id: Optional[UUID] = Field(
+        default=None, foreign_key="recurring_expenses.id", index=True
+    )
 
     # Unique identifier for deduplication (composite key hash)
     transaction_key: str = Field(
@@ -262,6 +265,9 @@ class Transaction(TransactionBase, table=True):
     # Relationships
     user: User = Relationship(back_populates="transactions")
     credential: "BankCredential" = Relationship()  # type: ignore[name-defined]
+    recurring_expense: Optional["RecurringExpense"] = Relationship(
+        back_populates="transactions"
+    )
 
 
 class TransactionPublic(TransactionBase):
@@ -349,6 +355,10 @@ class RecurringExpense(RecurringExpenseBase, table=True):
 
     # Relationships
     user: User = Relationship(back_populates="recurring_expenses")
+    transactions: list[Transaction] = Relationship(
+        back_populates="recurring_expense",
+        sa_relationship_kwargs={"cascade": "save-update"},
+    )
 
 
 class RecurringExpensePublic(RecurringExpenseBase):
@@ -360,6 +370,24 @@ class RecurringExpensePublic(RecurringExpenseBase):
     first_seen_date: date
     last_seen_date: date
     created_at: datetime
+
+
+class RecurringExpenseTransactionSummary(SQLModel):
+    """Lightweight representation of transactions linked to a recurrence."""
+
+    transaction_id: UUID
+    date: date
+    amount: Decimal
+    merchant_name: Optional[str]
+    cleaned_label: Optional[str]
+    category: TransactionCategory
+
+
+class RecurringExpenseDetail(RecurringExpensePublic):
+    """Recurring expense enriched with calendar + contributing transactions."""
+
+    payment_schedule: List[date] = Field(default_factory=list)
+    transactions: List[RecurringExpenseTransactionSummary] = Field(default_factory=list)
 
 
 # endregion

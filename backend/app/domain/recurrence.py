@@ -1,6 +1,6 @@
 """Domain logic for detecting recurring expense patterns."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
@@ -29,6 +29,7 @@ class RecurrenceDetectionResult:
     frequency_days: Optional[int]
     confidence_score: float
     next_expected_date: Optional[date]
+    payment_schedule: list[date] = field(default_factory=list)
 
 
 class RecurrenceDetector:
@@ -43,8 +44,20 @@ class RecurrenceDetector:
 
     # Tolerance thresholds
     LABEL_SIMILARITY_THRESHOLD = 0.8  # 80% similar
-    AMOUNT_VARIANCE_THRESHOLD = 0.05  # 5% variation allowed
-    DATE_TOLERANCE_DAYS = 3  # +/- 3 days for monthly patterns
+    AMOUNT_VARIANCE_THRESHOLD = 0.05  # +/-5% variation allowed (strict)
+    AMOUNT_LOOSE_VARIANCE_THRESHOLD = 0.25  # +/-25% allowed for variable utilities
+    MIN_STRICT_AMOUNT_RATIO = 0.8  # 80% of amounts must be within strict band
+    MIN_LOOSE_AMOUNT_RATIO = 0.6  # 60% within loose band to accept variable recurring
+    MIN_OCCURRENCES_FOR_VARIABLE = 4
+    DATE_TOLERANCE_DAYS = 3  # +/-3 days tolerance around target cycle length
+    MIN_PATTERN_MATCH_RATIO = 0.6  # At least 60% of intervals must be within tolerance
+    PAYMENT_SCHEDULE_WINDOW_DAYS = 180  # Build calendar ~6 months ahead
+
+    CANDIDATE_PATTERNS: dict[str, int] = {
+        "weekly": 7,
+        "monthly": 30,
+        "annually": 365,
+    }
 
     @staticmethod
     def calculate_label_similarity(label1: str, label2: str) -> float:
@@ -86,7 +99,46 @@ class RecurrenceDetector:
         return std / mean
 
     @staticmethod
-    def analyze_frequency(dates: list[date]) -> tuple[str, Optional[int], float]:
+    def _median_amount(amounts: list[Decimal]) -> float:
+        """Return the median value as float for easier tolerance math."""
+
+        if not amounts:
+            return 0.0
+
+        sorted_amounts = sorted(float(a) for a in amounts)
+        mid = len(sorted_amounts) // 2
+
+        if len(sorted_amounts) % 2:
+            return sorted_amounts[mid]
+
+        return (sorted_amounts[mid - 1] + sorted_amounts[mid]) / 2
+
+    @classmethod
+    def calculate_amount_match_ratio(
+        cls, amounts: list[Decimal], tolerance_pct: float
+    ) -> float:
+        """Share of occurrences staying within the given tolerance around median."""
+
+        if not amounts:
+            return 0.0
+
+        median = cls._median_amount(amounts)
+        tolerance_value = abs(median) * tolerance_pct
+
+        # When median is ≈0 (rare), fall back to absolute tolerance using 1 currency unit
+        if tolerance_value == 0:
+            tolerance_value = tolerance_pct or 1.0
+
+        matches = sum(
+            1
+            for amount in amounts
+            if abs(float(amount) - median) <= tolerance_value
+        )
+
+        return matches / len(amounts)
+
+    @classmethod
+    def analyze_frequency(cls, dates: list[date]) -> tuple[str, Optional[int], float]:
         """
         Analyze the frequency pattern of dates.
         
@@ -103,42 +155,51 @@ class RecurrenceDetector:
             (sorted_dates[i + 1] - sorted_dates[i]).days
             for i in range(len(sorted_dates) - 1)
         ]
-        
-        avg_interval = sum(intervals) / len(intervals)
-        
-        # Calculate variance in intervals
-        if len(intervals) > 1:
-            variance = sum((i - avg_interval) ** 2 for i in intervals) / len(intervals)
-            std = variance ** 0.5
-            interval_consistency = max(0.0, 1.0 - (std / avg_interval if avg_interval > 0 else 0))
-        else:
-            interval_consistency = 0.5  # Single interval, moderate confidence
-        
-        # Determine pattern type based on average interval
-        pattern_map = [
-            (7, "weekly"),
-            (14, "biweekly"),
-            (30, "monthly"),
-            (90, "quarterly"),
-            (365, "annually"),
-        ]
-        
-        closest_pattern = "unknown"
-        pattern_confidence = 0.0
-        
-        for target_days, pattern_name in pattern_map:
-            diff = abs(avg_interval - target_days)
-            tolerance = target_days * 0.1  # 10% tolerance
-            
-            if diff <= tolerance:
-                closest_pattern = pattern_name
-                pattern_confidence = 1.0 - (diff / target_days)
-                break
-        
-        # Overall confidence combines interval consistency and pattern match
-        confidence = (interval_consistency + pattern_confidence) / 2
-        
-        return (closest_pattern, int(avg_interval), confidence)
+
+        best_pattern = "unknown"
+        best_frequency: Optional[int] = None
+        best_confidence = 0.0
+
+        for pattern_name, target_days in cls.CANDIDATE_PATTERNS.items():
+            matching_intervals = [
+                interval
+                for interval in intervals
+                if abs(interval - target_days) <= cls.DATE_TOLERANCE_DAYS
+            ]
+
+            if not matching_intervals:
+                continue
+
+            match_ratio = len(matching_intervals) / len(intervals)
+            if match_ratio < cls.MIN_PATTERN_MATCH_RATIO:
+                continue
+
+            avg_match_interval = int(
+                round(sum(matching_intervals) / len(matching_intervals))
+            )
+
+            if match_ratio > best_confidence:
+                best_pattern = pattern_name
+                best_frequency = max(1, avg_match_interval)
+                best_confidence = match_ratio
+
+        return (best_pattern, best_frequency, best_confidence)
+
+    @classmethod
+    def build_payment_schedule(
+        cls, next_expected: date, frequency_days: int
+    ) -> list[date]:
+        """Generate a payment calendar within the configured horizon."""
+
+        schedule: list[date] = []
+        horizon = next_expected + timedelta(days=cls.PAYMENT_SCHEDULE_WINDOW_DAYS)
+        current = next_expected
+
+        while current <= horizon:
+            schedule.append(current)
+            current += timedelta(days=frequency_days)
+
+        return schedule
 
     @classmethod
     def detect_recurrence(
@@ -169,34 +230,49 @@ class RecurrenceDetector:
                 next_expected_date=None,
             )
         
-        # Calculate amount stability
+        # Calculate amount stability (strict vs loose for utilities)
         amount_variance = cls.calculate_amount_variance(amounts)
-        amount_stable = amount_variance <= cls.AMOUNT_VARIANCE_THRESHOLD
+        strict_ratio = cls.calculate_amount_match_ratio(
+            amounts, cls.AMOUNT_VARIANCE_THRESHOLD
+        )
+        loose_ratio = cls.calculate_amount_match_ratio(
+            amounts, cls.AMOUNT_LOOSE_VARIANCE_THRESHOLD
+        )
+
+        amount_stable = strict_ratio >= cls.MIN_STRICT_AMOUNT_RATIO
+        variable_amount_pattern = (
+            not amount_stable
+            and loose_ratio >= cls.MIN_LOOSE_AMOUNT_RATIO
+            and len(amounts) >= cls.MIN_OCCURRENCES_FOR_VARIABLE
+        )
         
         # Analyze frequency
         pattern_type, freq_days, freq_confidence = cls.analyze_frequency(dates)
         
         # Determine if recurring based on multiple factors
         is_recurring = (
-            amount_stable
-            and pattern_type != "unknown"
+            pattern_type != "unknown"
             and freq_confidence >= 0.6
             and len(dates) >= 2  # At least 2 occurrences
+            and (amount_stable or variable_amount_pattern)
         )
         
         # Calculate average amount
         avg_amount = sum(amounts) / len(amounts)
         
-        # Predict next expected date
+        # Predict next expected date & future calendar
         next_expected: Optional[date] = None
+        payment_schedule: list[date] = []
         if is_recurring and freq_days:
             last_date = max(dates)
             next_expected = last_date + timedelta(days=freq_days)
+            payment_schedule = cls.build_payment_schedule(next_expected, freq_days)
         
         # Overall confidence score
+        amount_score = strict_ratio if amount_stable else loose_ratio * 0.8
         confidence = (
             freq_confidence * 0.5
-            + (1.0 - min(amount_variance, 1.0)) * 0.3
+            + amount_score * 0.3
             + (min(len(dates), 12) / 12) * 0.2  # More occurrences = higher confidence
         )
         
@@ -208,6 +284,7 @@ class RecurrenceDetector:
             frequency_days=freq_days,
             confidence_score=round(confidence, 2),
             next_expected_date=next_expected,
+            payment_schedule=payment_schedule,
         )
 
     @classmethod

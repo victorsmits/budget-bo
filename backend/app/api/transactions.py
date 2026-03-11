@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import SQLModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.auth import require_user
@@ -47,6 +47,7 @@ async def list_transactions(
     is_recurring: bool | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
+    search: str | None = None,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
 ) -> PaginatedResponse[TransactionPublic]:
@@ -75,6 +76,15 @@ async def list_transactions(
         query = query.where(Transaction.date >= start_date)
     if end_date:
         query = query.where(Transaction.date <= end_date)
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Transaction.cleaned_label.ilike(pattern),
+                Transaction.merchant_name.ilike(pattern),
+                Transaction.raw_label.ilike(pattern),
+            )
+        )
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -82,7 +92,15 @@ async def list_transactions(
     total = total_result.scalar()
 
     # Get paginated results
-    query = query.order_by(Transaction.date.desc()).offset(pagination.skip).limit(pagination.size)
+    query = (
+        query.order_by(
+            Transaction.date.desc(),
+            Transaction.amount.desc(),
+            Transaction.cleaned_label.asc(),
+        )
+        .offset(pagination.skip)
+        .limit(pagination.size)
+    )
     result = await session.execute(query)
     transactions = result.scalars().all()
 

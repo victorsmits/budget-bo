@@ -50,13 +50,14 @@ export const api = {
 
   // Transactions
   transactions: {
-    list: (params?: { category?: string; start_date?: string; end_date?: string; page?: number; size?: number }) => {
+    list: (params?: { category?: string; start_date?: string; end_date?: string; page?: number; size?: number; search?: string }) => {
       const searchParams = new URLSearchParams()
       if (params?.category) searchParams.append("category", params.category)
       if (params?.start_date) searchParams.append("start_date", params.start_date)
       if (params?.end_date) searchParams.append("end_date", params.end_date)
       if (params?.page) searchParams.append("page", params.page.toString())
       if (params?.size) searchParams.append("size", params.size.toString())
+      if (params?.search) searchParams.append("search", params.search)
       const query = searchParams.toString()
       return apiClient(`/transactions${query ? `?${query}` : ""}`)
     },
@@ -71,10 +72,19 @@ export const api = {
   recurring: {
     list: () => apiClient("/recurring"),
     upcoming: (days_ahead?: number) => apiClient(`/recurring/upcoming${days_ahead ? `?days_ahead=${days_ahead}` : ""}`),
-    detect: (months_back?: number) => apiClient("/recurring/detect", {
-      method: "POST",
-      body: JSON.stringify({ months_back: months_back || 6 }),
-    }),
+    get: (id: string) => apiClient(`/recurring/${id}`),
+    detect: (months_back?: number) =>
+      apiClient("/recurring/detect", {
+        method: "POST",
+        body: JSON.stringify({ months_back: months_back || 6 }),
+      }),
+    cancel: (id: string) => apiClient(`/recurring/${id}/cancel`, { method: "POST" }),
+    rename: (id: string, new_name: string) =>
+      apiClient(`/recurring/${id}/rename`, {
+        method: "PATCH",
+        body: JSON.stringify({ new_name }),
+      }),
+    delete: (id: string) => apiClient(`/recurring/${id}`, { method: "DELETE" }),
     stats: () => apiClient("/recurring/stats/summary"),
   },
 

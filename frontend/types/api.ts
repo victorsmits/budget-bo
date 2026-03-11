@@ -38,9 +38,35 @@ export interface TransactionCorrectionPayload {
 // Types pour les dépenses récurrentes
 export interface RecurringExpense {
   id: string
+  user_id: string
   pattern_name: string
+  pattern: string
   average_amount: number
+  amount_variation_pct: number
+  frequency_days: number | null
+  day_of_month: number | null
+  day_of_week: number | null
   next_expected_date: string | null
+  is_active: boolean
+  confidence_score: number
+  matched_transaction_count: number
+  first_seen_date: string
+  last_seen_date: string
+  created_at: string
+}
+
+export interface RecurringExpenseTransactionSummary {
+  transaction_id: string
+  date: string
+  amount: number
+  merchant_name?: string | null
+  cleaned_label?: string | null
+  category: string
+}
+
+export interface RecurringExpenseDetail extends RecurringExpense {
+  payment_schedule: string[]
+  transactions: RecurringExpenseTransactionSummary[]
 }
 
 // Types pour le résumé
@@ -70,6 +96,7 @@ export interface TransactionFilters {
   end_date?: string
   page?: number
   size?: number
+  search?: string
 }
 
 export interface RecurringStats {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react"
@@ -38,20 +38,15 @@ export default function TransactionsPage() {
   }
 
   useEffect(() => {
-    api.transactions.list({ page, size: 20, ...(category ? { category } : {}) }).then((data) => {
+    api.transactions.list({ page, size: 20, ...(category ? { category } : {}), ...(search ? { search } : {}) }).then((data) => {
       setItems(data.items || [])
       setPages(data.pages || 1)
       setTotal(data.total || 0)
     })
-  }, [page, category])
-
-  const filtered = useMemo(
-    () => items.filter((t) => getTransactionDisplayLabel(t).toLowerCase().includes(search.toLowerCase())),
-    [items, search],
-  )
+  }, [page, category, search])
 
   const exportCSV = () => {
-    const csv = [["Date", "Libellé", "Catégorie", "Montant"], ...filtered.map((t) => [t.date, getTransactionDisplayLabel(t), getCategoryLabel(t.category), `${t.is_expense ? "-" : "+"}${t.amount}`])]
+    const csv = [["Date", "Libellé", "Catégorie", "Montant"], ...items.map((t) => [t.date, getTransactionDisplayLabel(t), getCategoryLabel(t.category), `${t.is_expense ? "-" : "+"}${t.amount}`])]
       .map((r) => r.join(","))
       .join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
@@ -74,11 +69,11 @@ export default function TransactionsPage() {
                 <Input className="pl-9" value={search} onChange={(e) => setParam("q", e.target.value)} placeholder="Recherche rapide" />
               </div>
               <CategorySelect value={category} onChange={(v) => setParam("category", v)} includeAllOption />
-              <Button variant="outline" onClick={exportCSV} disabled={!filtered.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
+              <Button variant="outline" onClick={exportCSV} disabled={!items.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
             </div>
 
             <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
-              {filtered.map((t) => (
+              {items.map((t) => (
                 <Link key={t.id} href={`/transactions/${t.id}`} className="block rounded-xl border p-3 hover:bg-muted/40">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -92,7 +87,7 @@ export default function TransactionsPage() {
                   </div>
                 </Link>
               ))}
-              {!filtered.length && <p className="py-8 text-center text-sm text-muted-foreground">Aucune transaction.</p>}
+              {!items.length && <p className="py-8 text-center text-sm text-muted-foreground">Aucune transaction.</p>}
             </div>
 
             <div className="flex items-center justify-between border-t pt-3">

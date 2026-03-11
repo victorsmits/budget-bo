@@ -5,11 +5,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.auth import require_user
 from app.core.database import AsyncSessionLocal
-from app.models.models import RecurringExpense, RecurringExpensePublic, User
+from app.models.models import (
+    RecurringExpense,
+    RecurringExpenseDetail,
+    RecurringExpensePublic,
+    User,
+)
 from app.services.recurring import RecurringExpenseService
 
 router = APIRouter(prefix="/recurring", tags=["recurring"])
@@ -28,9 +34,15 @@ async def list_recurring(
 ) -> list[RecurringExpensePublic]:
     """List all recurring expenses for current user."""
     result = await session.execute(
-        select(RecurringExpense).where(
+        select(RecurringExpense)
+        .where(
             RecurringExpense.user_id == user.id,
             RecurringExpense.is_active == True,
+        )
+        .order_by(
+            RecurringExpense.next_expected_date.desc(),
+            RecurringExpense.average_amount.desc(),
+            RecurringExpense.pattern_name.asc(),
         )
     )
     expenses = result.scalars().all()
@@ -49,28 +61,23 @@ async def get_upcoming(
     return expenses  # type: ignore
 
 
-@router.get("/{expense_id}", response_model=RecurringExpensePublic)
+@router.get("/{expense_id}", response_model=RecurringExpenseDetail)
 async def get_recurring(
     expense_id: UUID,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
-) -> RecurringExpensePublic:
-    """Get specific recurring expense by ID."""
-    result = await session.execute(
-        select(RecurringExpense).where(
-            RecurringExpense.id == expense_id,
-            RecurringExpense.user_id == user.id,
-        )
-    )
-    expense = result.scalar_one_or_none()
+) -> RecurringExpenseDetail:
+    """Get specific recurring expense with payment schedule + transactions."""
+    service = RecurringExpenseService(session)
+    detail = await service.get_recurring_detail(str(user.id), str(expense_id))
 
-    if not expense:
+    if not detail:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recurring expense not found",
         )
 
-    return RecurringExpensePublic.model_validate(expense)
+    return detail
 
 
 @router.post("/detect", response_model=list[RecurringExpensePublic])
@@ -85,20 +92,21 @@ async def detect_recurring(
     return detected  # type: ignore
 
 
-@router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_recurring(
+class RecurringRenamePayload(SQLModel):
+    """Payload for renaming a recurring expense."""
+
+    new_name: str
+
+
+@router.post("/{expense_id}/cancel", response_model=RecurringExpensePublic)
+async def cancel_recurring(
     expense_id: UUID,
     user: User = Depends(require_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
-    """Deactivate a recurring expense pattern."""
-    result = await session.execute(
-        select(RecurringExpense).where(
-            RecurringExpense.id == expense_id,
-            RecurringExpense.user_id == user.id,
-        )
-    )
-    expense = result.scalar_one_or_none()
+) -> RecurringExpensePublic:
+    """Cancel a recurring expense without detaching history."""
+    service = RecurringExpenseService(session)
+    expense = await service.cancel_recurring_expense(str(user.id), str(expense_id))
 
     if not expense:
         raise HTTPException(
@@ -106,8 +114,52 @@ async def delete_recurring(
             detail="Recurring expense not found",
         )
 
-    expense.is_active = False
-    await session.commit()
+    return RecurringExpensePublic.model_validate(expense)
+
+
+@router.patch("/{expense_id}/rename", response_model=RecurringExpensePublic)
+async def rename_recurring(
+    expense_id: UUID,
+    payload: RecurringRenamePayload,
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> RecurringExpensePublic:
+    """Rename a recurring expense and propagate to linked transactions."""
+    if not payload.new_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="new_name is required",
+        )
+
+    service = RecurringExpenseService(session)
+    expense = await service.rename_recurring_expense(
+        str(user.id), str(expense_id), payload.new_name.strip()
+    )
+
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recurring expense not found",
+        )
+
+    return RecurringExpensePublic.model_validate(expense)
+
+
+@router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recurring(
+    expense_id: UUID,
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Deactivate and detach a recurring expense pattern."""
+    service = RecurringExpenseService(session)
+    deleted = await service.delete_recurring_expense(str(user.id), str(expense_id))
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Recurring expense not found",
+        )
 
 
 @router.get("/stats/summary", response_model=dict[str, Any])
