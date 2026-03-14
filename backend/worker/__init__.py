@@ -9,6 +9,7 @@ Jobs are organized by type:
 from worker.jobs import (
     enrich_all_transactions,
     enrich_single_transaction,
+    enrich_transactions_batch,
     enrich_user_transactions,
     sync_all_credentials,
     sync_credential_transactions,
@@ -19,6 +20,7 @@ __all__ = [
     "sync_credential_transactions",
     "sync_all_credentials",
     "enrich_single_transaction",
+    "enrich_transactions_batch",
     "enrich_user_transactions",
     "enrich_all_transactions",
     "trigger_enrichment_after_sync",

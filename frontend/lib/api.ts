@@ -64,6 +64,7 @@ export const api = {
     getById: (id: string) => apiClient(`/transactions/${id}`),
     summary: () => apiClient("/transactions/summary"),
     enrich: (id: string) => apiClient(`/transactions/${id}/enrich`, { method: "POST" }),
+    resetEnrichment: () => apiClient("/transactions/enrich/reset", { method: "POST" }),
     correct: (id: string, payload: TransactionCorrectionPayload) =>
       apiClient(`/transactions/${id}/correction`, { method: "PATCH", body: JSON.stringify(payload) }),
   },

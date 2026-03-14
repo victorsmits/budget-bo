@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Search, Sparkles, Trash2 } from "lucide-react"
 
 import DashboardLayout from "../dashboard-layout"
 import { PageHeader } from "@/components/page-header"
@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
 import { getCategoryLabel, getTransactionDisplayLabel } from "@/lib/transaction-presentation"
+import { useResetEnrichment } from "@/hooks/api/useTransactions"
 import { Transaction } from "@/types/api"
 
 function TransactionsContent() {
@@ -22,6 +23,7 @@ function TransactionsContent() {
   const pathname = usePathname()
 
   const [items, setItems] = useState<Transaction[]>([])
+  const resetEnrichment = useResetEnrichment()
   const [pages, setPages] = useState(1)
   const [total, setTotal] = useState(0)
 
@@ -69,7 +71,17 @@ function TransactionsContent() {
                 <Input className="pl-9" value={search} onChange={(e) => setParam("q", e.target.value)} placeholder="Recherche rapide" />
               </div>
               <CategorySelect value={category} onChange={(v) => setParam("category", v)} includeAllOption />
-              <Button variant="outline" onClick={exportCSV} disabled={!items.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={exportCSV} disabled={!items.length}><Download className="mr-2 size-4" />Exporter CSV</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => resetEnrichment.mutate()}
+                  disabled={resetEnrichment.isPending}
+                >
+                  {resetEnrichment.isPending ? <Sparkles className="mr-2 size-4 animate-pulse" /> : <Trash2 className="mr-2 size-4" />}
+                  Clear enrichissement
+                </Button>
+              </div>
             </div>
 
             <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">

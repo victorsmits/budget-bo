@@ -86,6 +86,23 @@ export function useEnrichTransaction() {
   })
 }
 
+
+export function useResetEnrichment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => api.transactions.resetEnrichment(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      toast.success("Tous les enrichissements ont été réinitialisés")
+    },
+    onError: (error) => {
+      console.error("Reset enrichment failed:", error)
+      toast.error("Impossible de réinitialiser les enrichissements")
+    },
+  })
+}
+
 export function useCorrectTransaction() {
   const queryClient = useQueryClient()
 

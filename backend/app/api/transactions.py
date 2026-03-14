@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import SQLModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.auth import require_user
@@ -17,6 +17,7 @@ from app.models.models import (
     TransactionCategory,
     TransactionPublic,
     User,
+    EnrichmentRule,
 )
 from app.services.enrichment_memory import upsert_rule_from_transaction_async
 from app.models.pagination import PaginatedResponse, PaginationParams
@@ -282,6 +283,40 @@ async def enrich_transactions(
         "days_back": days_back,
     }
 
+
+
+
+@router.post("/enrich/reset", response_model=dict[str, Any])
+async def reset_enrichment_data(
+    user: User = Depends(require_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Clear all enrichment data (transactions + learned rules) for the current user."""
+    tx_stmt = (
+        select(Transaction).where(Transaction.user_id == user.id)
+    )
+    tx_rows = await session.execute(tx_stmt)
+    transactions = tx_rows.scalars().all()
+
+    for tx in transactions:
+        tx.cleaned_label = None
+        tx.merchant_name = None
+        tx.ai_confidence = None
+        tx.ai_category_reasoning = None
+        tx.enriched_at = None
+        tx.category = TransactionCategory.OTHER
+
+    rules_result = await session.execute(
+        delete(EnrichmentRule).where(EnrichmentRule.user_id == user.id)
+    )
+
+    await session.commit()
+
+    return {
+        "status": "success",
+        "transactions_reset": len(transactions),
+        "rules_deleted": rules_result.rowcount or 0,
+    }
 
 @router.post("/{transaction_id}/enrich", response_model=TransactionPublic)
 async def enrich_transaction(

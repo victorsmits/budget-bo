@@ -149,6 +149,8 @@ class OllamaService:
         Normalise un libellé bancaire brut.
         Retourne : cleaned_label, merchant_name, category, confidence
         """
+        payload_text = "\n".join(payload_lines)
+
         messages = [
             {
                 "role": "system",
@@ -208,6 +210,135 @@ JSON attendu :
             "is_expense": result.get("is_expense", amount < 0),
             "confidence": float(result.get("confidence", 0.5)),
         }
+
+    def normalize_labels_batch(self, raw_labels: list[str]) -> list[dict[str, Any]]:
+        """Normalise plusieurs libellés en un seul appel modèle."""
+        if not raw_labels:
+            return []
+
+        payload = "\n".join(
+            f"{idx + 1}. {label}" for idx, label in enumerate(raw_labels)
+        )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Tu es un expert en analyse de relevés bancaires français. "
+                    "Réponds UNIQUEMENT en JSON valide sous la forme "
+                    "{\"items\":[{\"index\":1,\"cleaned_label\":\"...\",\"merchant_name\":\"...\","
+                    "\"category\":\"other\",\"confidence\":0.7}]}."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Normalise les libellés suivants.\n"
+                    f"{payload}\n\n"
+                    "Contraintes:\n"
+                    "- Conserve exactement le même index que l'entrée\n"
+                    "- category doit être dans les catégories valides\n"
+                    "- confidence entre 0 et 1"
+                ),
+            },
+        ]
+
+        result = _parse_json(self._chat(messages, tools=[WEB_SEARCH_TOOL]))
+        raw_items = result.get("items") if isinstance(result, dict) else None
+        if not isinstance(raw_items, list):
+            return [self.normalize_label(label) for label in raw_labels]
+
+        mapped: dict[int, dict[str, Any]] = {}
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            raw_index = item.get("index")
+            if not isinstance(raw_index, int):
+                continue
+            if raw_index < 1 or raw_index > len(raw_labels):
+                continue
+            mapped[raw_index - 1] = _validate_normalize(item, raw_labels[raw_index - 1])
+
+        return [mapped.get(idx, self.normalize_label(label)) for idx, label in enumerate(raw_labels)]
+
+    def categorize_transactions_batch(
+        self,
+        transactions: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Catégorise plusieurs transactions en un seul appel modèle."""
+        if not transactions:
+            return []
+
+        payload_lines: list[str] = []
+        for idx, tx in enumerate(transactions):
+            payload_lines.append(
+                f"{idx + 1}. label={tx.get('label', '')} | amount={tx.get('amount', 0)} | merchant={tx.get('merchant_hint', '')}"
+            )
+
+        payload_text = "\n".join(payload_lines)
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Tu es un expert en analyse de relevés bancaires français. "
+                    "Réponds UNIQUEMENT en JSON valide sous la forme "
+                    "{\"items\":[{\"index\":1,\"category\":\"other\",\"reasoning\":\"...\","
+                    "\"is_expense\":true,\"confidence\":0.7}]}."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Catégorise les transactions suivantes.\n"
+                    f"{payload_text}\n\n"
+                    f"Catégories valides : {', '.join(sorted(VALID_CATEGORIES))}\n"
+                    "Règles income:\n"
+                    "- income UNIQUEMENT avec indice explicite (salaire, remboursement, allocation, virement entrant)\n"
+                    "- Un montant positif seul ne suffit pas"
+                ),
+            },
+        ]
+
+        result = _parse_json(self._chat(messages, tools=[WEB_SEARCH_TOOL]))
+        raw_items = result.get("items") if isinstance(result, dict) else None
+        if not isinstance(raw_items, list):
+            return [
+                self.categorize_transaction(
+                    label=str(tx.get("label", "")),
+                    amount=float(tx.get("amount", 0.0)),
+                    merchant_hint=str(tx.get("merchant_hint", "")) or None,
+                )
+                for tx in transactions
+            ]
+
+        mapped: dict[int, dict[str, Any]] = {}
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            raw_index = item.get("index")
+            if not isinstance(raw_index, int):
+                continue
+            if raw_index < 1 or raw_index > len(transactions):
+                continue
+            source = transactions[raw_index - 1]
+            mapped[raw_index - 1] = {
+                "category": _safe_category(item.get("category")),
+                "reasoning": item.get("reasoning", ""),
+                "is_expense": bool(item.get("is_expense", float(source.get("amount", 0)) < 0)),
+                "confidence": float(item.get("confidence", 0.5)),
+            }
+
+        return [
+            mapped.get(
+                idx,
+                self.categorize_transaction(
+                    label=str(tx.get("label", "")),
+                    amount=float(tx.get("amount", 0.0)),
+                    merchant_hint=str(tx.get("merchant_hint", "")) or None,
+                ),
+            )
+            for idx, tx in enumerate(transactions)
+        ]
 
     def is_recurring_pattern(
         self,
