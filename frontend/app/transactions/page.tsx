@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react"
@@ -16,7 +16,7 @@ import { api } from "@/lib/api"
 import { getCategoryLabel, getTransactionDisplayLabel } from "@/lib/transaction-presentation"
 import { Transaction } from "@/types/api"
 
-export default function TransactionsPage() {
+function TransactionsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -101,5 +101,13 @@ export default function TransactionsPage() {
         </Card>
       </div>
     </DashboardLayout>
+  )
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TransactionsContent />
+    </Suspense>
   )
 }
