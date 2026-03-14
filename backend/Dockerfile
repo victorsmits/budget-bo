@@ -67,7 +67,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 appuser \
-    && useradd --system --uid 1001 --gid 1001 --create-home appuser
+    && useradd --system --uid 1001 --gid 1001 --create-home appuser \
+    && mkdir -p /app/celerybeat-data \
+    && chown appuser:appuser /app/celerybeat-data
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app

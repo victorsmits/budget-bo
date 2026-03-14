@@ -92,7 +92,7 @@ services:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
     container_name: budget-bo-beat-prod
     restart: unless-stopped
-    command: celery -A worker.celery_app beat --loglevel=info
+    command: celery -A worker.celery_app beat --loglevel=info --schedule=/app/celerybeat-data/celerybeat-schedule
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
@@ -109,7 +109,7 @@ services:
       worker:
         condition: service_started
     volumes:
-      - celerybeat_data:/app/celerybeat-schedule
+      - celerybeat_data:/app/celerybeat-data
     networks:
       - budget-bo-network
 
