@@ -105,25 +105,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_recurring_expenses_user_id'), 'recurring_expenses', ['user_id'], unique=False)
     
-    # Create enrichment_rules table
-    op.create_table('enrichment_rules',
-        sa.Column('id', UUID(as_uuid=True), nullable=False),
-        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
-        sa.Column('label_fingerprint', sa.String(), nullable=False),
-        sa.Column('merchant_name', sa.String(), nullable=True),
-        sa.Column('cleaned_label', sa.String(), nullable=False),
-        sa.Column('category', sa.Enum('HOUSING', 'TRANSPORTATION', 'FOOD', 'UTILITIES', 'HEALTHCARE', 'ENTERTAINMENT', 'GROCERIES', 'DINING', 'SHOPPING', 'HOME_IMPROVEMENT', 'SUBSCRIPTIONS', 'INCOME', 'INSURANCE', 'EDUCATION', 'TRAVEL', 'OTHER', name='transactioncategory'), nullable=True),
-        sa.Column('usage_count', sa.Integer(), nullable=True),
-        sa.Column('learned_from_transaction_id', UUID(as_uuid=True), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
-        sa.Column('updated_at', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['learned_from_transaction_id'], ['transactions.id'], ),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_enrichment_rules_label_fingerprint'), 'enrichment_rules', ['label_fingerprint'], unique=False)
-    op.create_index(op.f('ix_enrichment_rules_user_id'), 'enrichment_rules', ['user_id'], unique=False)
-    
     # Create transactions table
     op.create_table('transactions',
         sa.Column('id', UUID(as_uuid=True), nullable=False),
@@ -156,6 +137,25 @@ def upgrade() -> None:
     op.create_index(op.f('ix_transactions_recurring_expense_id'), 'transactions', ['recurring_expense_id'], unique=False)
     op.create_index(op.f('ix_transactions_transaction_key'), 'transactions', ['transaction_key'], unique=False)
     op.create_index(op.f('ix_transactions_user_id'), 'transactions', ['user_id'], unique=False)
+    
+    # Create enrichment_rules table (depends on users and transactions)
+    op.create_table('enrichment_rules',
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
+        sa.Column('label_fingerprint', sa.String(), nullable=False),
+        sa.Column('merchant_name', sa.String(), nullable=True),
+        sa.Column('cleaned_label', sa.String(), nullable=False),
+        sa.Column('category', sa.Enum('HOUSING', 'TRANSPORTATION', 'FOOD', 'UTILITIES', 'HEALTHCARE', 'ENTERTAINMENT', 'GROCERIES', 'DINING', 'SHOPPING', 'HOME_IMPROVEMENT', 'SUBSCRIPTIONS', 'INCOME', 'INSURANCE', 'EDUCATION', 'TRAVEL', 'OTHER', name='transactioncategory'), nullable=True),
+        sa.Column('usage_count', sa.Integer(), nullable=True),
+        sa.Column('learned_from_transaction_id', UUID(as_uuid=True), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(['learned_from_transaction_id'], ['transactions.id'], ),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_enrichment_rules_label_fingerprint'), 'enrichment_rules', ['label_fingerprint'], unique=False)
+    op.create_index(op.f('ix_enrichment_rules_user_id'), 'enrichment_rules', ['user_id'], unique=False)
     
     # ### end Alembic commands ###
 
