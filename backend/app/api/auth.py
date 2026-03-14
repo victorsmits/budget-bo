@@ -218,7 +218,7 @@ async def _exchange_code_for_token(code: str) -> dict[str, Any] | None:
     if not settings.google_client_secret:
         return None
 
-    redirect_uri = "http://localhost:8000/auth/callback"
+    redirect_uri = f"{settings.backend_url}/auth/callback"
 
     token_url = "https://oauth2.googleapis.com/token"
     data = {
