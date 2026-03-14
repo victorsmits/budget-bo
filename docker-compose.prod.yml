@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: budget-bo-postgres-prod
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -18,6 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: budget-bo-redis-prod
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -32,8 +34,9 @@ services:
 
   migrate:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-migrate-prod
     restart: "no"
-    command: alembic upgrade head
+    command: alembic upgrade heads
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
@@ -55,6 +58,7 @@ services:
 
   backend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-backend-prod
     restart: unless-stopped
     environment:
       ENVIRONMENT: production
@@ -86,6 +90,7 @@ services:
 
   worker:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-worker-prod
     restart: unless-stopped
     command: celery -A worker.celery_app worker -Q sync,enrich,default --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-8} -n worker@%h
     environment:
@@ -113,6 +118,7 @@ services:
 
   beat:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-beat-prod
     restart: unless-stopped
     command: celery -A worker.celery_app beat --loglevel=info
     environment:
@@ -137,6 +143,7 @@ services:
 
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-frontend-prod
     restart: unless-stopped
     environment:
       NODE_ENV: production
