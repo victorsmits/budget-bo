@@ -85,7 +85,7 @@ async def test_login(
 
 
 @router.get("/login")
-async def login() -> RedirectResponse:
+async def login(request: Request) -> RedirectResponse:
     """Redirect to Google OAuth login."""
     if not settings.google_client_id:
         raise HTTPException(
@@ -94,7 +94,11 @@ async def login() -> RedirectResponse:
         )
 
     # Build Google OAuth URL - use backend URL for callback
-    redirect_uri = "http://localhost:8000/auth/callback"
+    # En production, le backend est accessible via /api sur le même domaine
+    if settings.is_production:
+        redirect_uri = f"{settings.frontend_url}/api/auth/callback"
+    else:
+        redirect_uri = "http://localhost:8000/auth/callback"
     scope = "openid email profile"
 
     google_auth_url = (
@@ -149,12 +153,6 @@ async def auth_callback(
     # Create session cookie
     session_token = encryption.encrypt(str(user.id))
 
-    # Log pour debug avec uvicorn
-    import logging
-    logger = logging.getLogger("uvicorn.error")
-    logger.setLevel(logging.INFO)
-    logger.info(f"REDIRECT VERS: {settings.frontend_url}")
-    
     response = RedirectResponse(url=settings.frontend_url)
     response.set_cookie(
         key="session",
