@@ -149,6 +149,10 @@ async def auth_callback(
     # Create session cookie
     session_token = encryption.encrypt(str(user.id))
 
+    # Debug logs
+    print(f"DEBUG: User {user.id} logged in, redirecting to {settings.frontend_url}")
+    print(f"DEBUG: Session token created: {session_token[:20]}...")
+
     response = RedirectResponse(url=settings.frontend_url)
     response.set_cookie(
         key="session",

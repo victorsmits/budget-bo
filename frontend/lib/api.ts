@@ -44,7 +44,7 @@ export async function apiClient(
 export const api = {
   // Auth
   auth: {
-    me: () => apiClient("/auth/me"),
+    me: () => apiClient("/users/me"),
     logout: () => apiClient("/auth/logout", { method: "POST" }),
   },
 
