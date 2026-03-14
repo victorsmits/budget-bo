@@ -2,14 +2,16 @@
 const nextConfig = {
   output: 'standalone',
   async rewrites() {
-    // Utilise NEXT_PUBLIC_API_URL si disponible, sinon fallback sur localhost ou backend selon NODE_ENV
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 
-                   (process.env.NODE_ENV === 'production' ? 'http://backend:8000' : 'http://localhost:8000');
+    // En production, PAS de rewrite (géré par Nginx)
+    // En développement, rewrite vers localhost:8000
+    if (process.env.NODE_ENV === 'production') {
+      return []  // Pas de rewrite en production
+    }
     
     return [
       {
         source: '/api/:path*',
-        destination: `${apiUrl}/:path*`,
+        destination: 'http://localhost:8000/:path*',
       },
     ]
   },
