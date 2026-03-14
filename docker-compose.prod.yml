@@ -135,7 +135,7 @@ services:
       - worker
     networks:
       - budget-bo-network
-    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0
+    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0 --url_prefix=flower
 
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
