@@ -149,8 +149,6 @@ class OllamaService:
         Normalise un libellé bancaire brut.
         Retourne : cleaned_label, merchant_name, category, confidence
         """
-        payload_text = "\n".join(payload_lines)
-
         messages = [
             {
                 "role": "system",
@@ -273,8 +271,6 @@ JSON attendu :
             payload_lines.append(
                 f"{idx + 1}. label={tx.get('label', '')} | amount={tx.get('amount', 0)} | merchant={tx.get('merchant_hint', '')}"
             )
-
-        payload_text = "\n".join(payload_lines)
 
         messages = [
             {
