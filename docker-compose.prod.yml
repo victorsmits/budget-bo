@@ -1,0 +1,160 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-budgetbo}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - budget-bo-network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - budget-bo-network
+
+  migrate:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    restart: "no"
+    command: alembic upgrade head
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - budget-bo-network
+
+  backend:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-40}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    networks:
+      - budget-bo-network
+
+  worker:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: celery -A worker.celery_app worker -Q sync,enrich,default --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-8} -n worker@%h
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-8}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - woob_data:/home/appuser/.woob
+    networks:
+      - budget-bo-network
+
+  beat:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: celery -A worker.celery_app beat --loglevel=info
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_started
+    networks:
+      - budget-bo-network
+
+  frontend:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    networks:
+      - budget-bo-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  woob_data:
+
+networks:
+  budget-bo-network:
+    driver: bridge
