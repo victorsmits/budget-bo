@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID
 import sqlmodel
 
 # revision identifiers, used by Alembic.
@@ -23,7 +24,7 @@ def upgrade() -> None:
     
     # Create users table
     op.create_table('users',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
         sa.Column('email', sa.String(), nullable=False),
         sa.Column('oauth_id', sa.String(), nullable=False),
         sa.Column('is_active', sa.Boolean(), nullable=True),
@@ -41,12 +42,12 @@ def upgrade() -> None:
     
     # Create bank_credentials table
     op.create_table('bank_credentials',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
         sa.Column('bank_name', sa.String(), nullable=False),
         sa.Column('bank_label', sa.String(), nullable=True),
         sa.Column('bank_website', sa.String(), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=True),
-        sa.Column('user_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
         sa.Column('encrypted_login', sa.String(), nullable=False),
         sa.Column('encrypted_password', sa.String(), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -61,14 +62,14 @@ def upgrade() -> None:
     
     # Create bank_accounts table
     op.create_table('bank_accounts',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
         sa.Column('account_id', sa.String(), nullable=False),
         sa.Column('account_label', sa.String(), nullable=False),
         sa.Column('account_type', sa.String(), nullable=True),
         sa.Column('balance', sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column('currency', sa.String(), nullable=True),
-        sa.Column('user_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
-        sa.Column('credential_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
+        sa.Column('credential_id', UUID(as_uuid=True), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.Column('last_sync_at', sa.DateTime(), nullable=True),
@@ -81,7 +82,7 @@ def upgrade() -> None:
     
     # Create recurring_expenses table
     op.create_table('recurring_expenses',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
         sa.Column('pattern_name', sa.String(), nullable=False),
         sa.Column('pattern', sa.Enum('WEEKLY', 'MONTHLY', 'QUARTERLY', 'ANNUALLY', 'UNKNOWN', name='recurrencepattern'), nullable=True),
         sa.Column('average_amount', sa.Numeric(precision=12, scale=2), nullable=False),
@@ -92,7 +93,7 @@ def upgrade() -> None:
         sa.Column('next_expected_date', sa.Date(), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=True),
         sa.Column('confidence_score', sa.Float(), nullable=True),
-        sa.Column('user_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
         sa.Column('matching_label_pattern', sa.String(), nullable=False),
         sa.Column('matched_transaction_count', sa.Integer(), nullable=False),
         sa.Column('first_seen_date', sa.Date(), nullable=False),
@@ -106,14 +107,14 @@ def upgrade() -> None:
     
     # Create enrichment_rules table
     op.create_table('enrichment_rules',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
-        sa.Column('user_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
         sa.Column('label_fingerprint', sa.String(), nullable=False),
         sa.Column('merchant_name', sa.String(), nullable=True),
         sa.Column('cleaned_label', sa.String(), nullable=False),
         sa.Column('category', sa.Enum('HOUSING', 'TRANSPORTATION', 'FOOD', 'UTILITIES', 'HEALTHCARE', 'ENTERTAINMENT', 'GROCERIES', 'DINING', 'SHOPPING', 'HOME_IMPROVEMENT', 'SUBSCRIPTIONS', 'INCOME', 'INSURANCE', 'EDUCATION', 'TRAVEL', 'OTHER', name='transactioncategory'), nullable=True),
         sa.Column('usage_count', sa.Integer(), nullable=True),
-        sa.Column('learned_from_transaction_id', sqlmodel.sql.sqltypes.GUID(), nullable=True),
+        sa.Column('learned_from_transaction_id', UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['learned_from_transaction_id'], ['transactions.id'], ),
@@ -125,7 +126,7 @@ def upgrade() -> None:
     
     # Create transactions table
     op.create_table('transactions',
-        sa.Column('id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
+        sa.Column('id', UUID(as_uuid=True), nullable=False),
         sa.Column('date', sa.Date(), nullable=False),
         sa.Column('amount', sa.Numeric(precision=12, scale=2), nullable=False),
         sa.Column('raw_label', sa.String(), nullable=False),
@@ -134,9 +135,9 @@ def upgrade() -> None:
         sa.Column('is_expense', sa.Boolean(), nullable=True),
         sa.Column('is_recurring', sa.Boolean(), nullable=True),
         sa.Column('merchant_name', sa.String(), nullable=True),
-        sa.Column('user_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
-        sa.Column('credential_id', sqlmodel.sql.sqltypes.GUID(), nullable=False),
-        sa.Column('recurring_expense_id', sqlmodel.sql.sqltypes.GUID(), nullable=True),
+        sa.Column('user_id', UUID(as_uuid=True), nullable=False),
+        sa.Column('credential_id', UUID(as_uuid=True), nullable=False),
+        sa.Column('recurring_expense_id', UUID(as_uuid=True), nullable=True),
         sa.Column('transaction_key', sa.String(), nullable=False),
         sa.Column('currency', sa.String(), nullable=True),
         sa.Column('original_currency', sa.String(), nullable=True),
