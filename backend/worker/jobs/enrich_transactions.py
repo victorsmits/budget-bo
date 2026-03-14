@@ -69,7 +69,10 @@ def enrich_transactions_batch(
 
         normalizations: list[dict[str, Any]] = []
         if to_enrich:
-            normalizations = ollama_service.normalize_labels_batch([tx.raw_label for tx in to_enrich])
+            normalizations = ollama_service.normalize_labels_batch([
+                {"row_id": str(tx.id), "raw_label": tx.raw_label}
+                for tx in to_enrich
+            ])
 
         llm_candidates: list[dict[str, Any]] = []
         llm_indexes: list[int] = []
@@ -108,6 +111,7 @@ def enrich_transactions_batch(
                         "label": tx.cleaned_label or tx.merchant_name or raw_label,
                         "amount": signed_amount,
                         "merchant_hint": tx.merchant_name,
+                        "row_id": str(tx.id),
                     }
                 )
 
@@ -120,8 +124,16 @@ def enrich_transactions_batch(
         if llm_candidates:
             llm_results = ollama_service.categorize_transactions_batch(llm_candidates)
 
-        for mapped_idx, result in zip(llm_indexes, llm_results):
-            to_enrich[mapped_idx]._bb_categorization = result  # type: ignore[attr-defined]
+        llm_results_by_row = {
+            str(result.get("row_id", "")): result
+            for result in llm_results
+            if isinstance(result, dict)
+        }
+        for mapped_idx in llm_indexes:
+            tx = to_enrich[mapped_idx]
+            matched = llm_results_by_row.get(str(tx.id))
+            if matched is not None:
+                tx._bb_categorization = matched  # type: ignore[attr-defined]
 
         for tx in to_enrich:
             rule_based_category = tx._bb_rule_based_category  # type: ignore[attr-defined]

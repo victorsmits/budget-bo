@@ -209,31 +209,52 @@ JSON attendu :
             "confidence": float(result.get("confidence", 0.5)),
         }
 
-    def normalize_labels_batch(self, raw_labels: list[str]) -> list[dict[str, Any]]:
-        """Normalise plusieurs libellés en un seul appel modèle."""
-        if not raw_labels:
+    def normalize_labels_batch(self, records: list[dict[str, Any]] | list[str]) -> list[dict[str, Any]]:
+        """Normalise plusieurs libellés via un CSV et retourne une liste JSON alignée."""
+        if not records:
             return []
 
-        payload = "\n".join(
-            f"{idx + 1}. {label}" for idx, label in enumerate(raw_labels)
-        )
+        normalized_records: list[dict[str, str]] = []
+        if isinstance(records[0], str):
+            normalized_records = [
+                {"row_id": str(idx + 1), "raw_label": str(label)}
+                for idx, label in enumerate(records)
+            ]
+        else:
+            normalized_records = [
+                {
+                    "row_id": str(record.get("row_id", idx + 1)),
+                    "raw_label": str(record.get("raw_label", "")),
+                }
+                for idx, record in enumerate(records)  # type: ignore[arg-type]
+            ]
+
+        import csv
+        import io
+
+        csv_buffer = io.StringIO()
+        writer = csv.DictWriter(csv_buffer, fieldnames=["row_id", "raw_label"])
+        writer.writeheader()
+        writer.writerows(normalized_records)
+        payload_csv = csv_buffer.getvalue()
+
         messages = [
             {
                 "role": "system",
                 "content": (
                     "Tu es un expert en analyse de relevés bancaires français. "
-                    "Réponds UNIQUEMENT en JSON valide sous la forme "
-                    "{\"items\":[{\"index\":1,\"cleaned_label\":\"...\",\"merchant_name\":\"...\","
-                    "\"category\":\"other\",\"confidence\":0.7}]}."
+                    "Tu reçois un CSV et tu réponds UNIQUEMENT en JSON valide sous la forme "
+                    "{\"items\":[{\"row_id\":\"...\",\"cleaned_label\":\"...\","
+                    "\"merchant_name\":\"...\",\"category\":\"other\",\"confidence\":0.7}]}."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Normalise les libellés suivants.\n"
-                    f"{payload}\n\n"
+                    "Normalise les libellés du CSV suivant:\n"
+                    f"```csv\n{payload_csv}\n```\n\n"
                     "Contraintes:\n"
-                    "- Conserve exactement le même index que l'entrée\n"
+                    "- Conserve strictement row_id\n"
                     "- category doit être dans les catégories valides\n"
                     "- confidence entre 0 et 1"
                 ),
@@ -243,54 +264,74 @@ JSON attendu :
         result = _parse_json(self._chat(messages, tools=[WEB_SEARCH_TOOL]))
         raw_items = result.get("items") if isinstance(result, dict) else None
         if not isinstance(raw_items, list):
-            return [self.normalize_label(label) for label in raw_labels]
+            return [self.normalize_label(record["raw_label"]) for record in normalized_records]
 
-        mapped: dict[int, dict[str, Any]] = {}
+        by_row_id = {record["row_id"]: record for record in normalized_records}
+        mapped: dict[str, dict[str, Any]] = {}
         for item in raw_items:
             if not isinstance(item, dict):
                 continue
-            raw_index = item.get("index")
-            if not isinstance(raw_index, int):
+            row_id = str(item.get("row_id", "")).strip()
+            source = by_row_id.get(row_id)
+            if not source:
                 continue
-            if raw_index < 1 or raw_index > len(raw_labels):
-                continue
-            mapped[raw_index - 1] = _validate_normalize(item, raw_labels[raw_index - 1])
+            mapped[row_id] = _validate_normalize(item, source["raw_label"])
 
-        return [mapped.get(idx, self.normalize_label(label)) for idx, label in enumerate(raw_labels)]
+        return [
+            mapped.get(record["row_id"], self.normalize_label(record["raw_label"]))
+            for record in normalized_records
+        ]
 
     def categorize_transactions_batch(
         self,
         transactions: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Catégorise plusieurs transactions en un seul appel modèle."""
+        """Catégorise plusieurs transactions via CSV en une seule requête modèle."""
         if not transactions:
             return []
 
-        payload_lines: list[str] = []
-        for idx, tx in enumerate(transactions):
-            payload_lines.append(
-                f"{idx + 1}. label={tx.get('label', '')} | amount={tx.get('amount', 0)} | merchant={tx.get('merchant_hint', '')}"
-            )
+        payload_rows = [
+            {
+                "row_id": str(tx.get("row_id", idx + 1)),
+                "label": str(tx.get("label", "")),
+                "amount": str(tx.get("amount", 0)),
+                "merchant_hint": str(tx.get("merchant_hint", "")),
+            }
+            for idx, tx in enumerate(transactions)
+        ]
+
+        import csv
+        import io
+
+        csv_buffer = io.StringIO()
+        writer = csv.DictWriter(
+            csv_buffer,
+            fieldnames=["row_id", "label", "amount", "merchant_hint"],
+        )
+        writer.writeheader()
+        writer.writerows(payload_rows)
+        payload_csv = csv_buffer.getvalue()
 
         messages = [
             {
                 "role": "system",
                 "content": (
                     "Tu es un expert en analyse de relevés bancaires français. "
-                    "Réponds UNIQUEMENT en JSON valide sous la forme "
-                    "{\"items\":[{\"index\":1,\"category\":\"other\",\"reasoning\":\"...\","
+                    "Tu reçois un CSV et tu réponds UNIQUEMENT en JSON valide sous la forme "
+                    "{\"items\":[{\"row_id\":\"...\",\"category\":\"other\",\"reasoning\":\"...\","
                     "\"is_expense\":true,\"confidence\":0.7}]}."
                 ),
             },
             {
                 "role": "user",
                 "content": (
-                    "Catégorise les transactions suivantes.\n"
-                    f"{payload_text}\n\n"
+                    "Catégorise les transactions du CSV suivant:\n"
+                    f"```csv\n{payload_csv}\n```\n\n"
                     f"Catégories valides : {', '.join(sorted(VALID_CATEGORIES))}\n"
                     "Règles income:\n"
                     "- income UNIQUEMENT avec indice explicite (salaire, remboursement, allocation, virement entrant)\n"
-                    "- Un montant positif seul ne suffit pas"
+                    "- Un montant positif seul ne suffit pas\n"
+                    "- Conserve strictement row_id dans la réponse"
                 ),
             },
         ]
@@ -299,41 +340,47 @@ JSON attendu :
         raw_items = result.get("items") if isinstance(result, dict) else None
         if not isinstance(raw_items, list):
             return [
-                self.categorize_transaction(
-                    label=str(tx.get("label", "")),
-                    amount=float(tx.get("amount", 0.0)),
-                    merchant_hint=str(tx.get("merchant_hint", "")) or None,
-                )
-                for tx in transactions
+                {
+                    "row_id": str(tx.get("row_id", idx + 1)),
+                    **self.categorize_transaction(
+                        label=str(tx.get("label", "")),
+                        amount=float(tx.get("amount", 0.0)),
+                        merchant_hint=str(tx.get("merchant_hint", "")) or None,
+                    ),
+                }
+                for idx, tx in enumerate(transactions)
             ]
 
-        mapped: dict[int, dict[str, Any]] = {}
+        by_row_id = {row["row_id"]: row for row in payload_rows}
+        mapped: dict[str, dict[str, Any]] = {}
         for item in raw_items:
             if not isinstance(item, dict):
                 continue
-            raw_index = item.get("index")
-            if not isinstance(raw_index, int):
+            row_id = str(item.get("row_id", "")).strip()
+            source = by_row_id.get(row_id)
+            if not source:
                 continue
-            if raw_index < 1 or raw_index > len(transactions):
-                continue
-            source = transactions[raw_index - 1]
-            mapped[raw_index - 1] = {
+            mapped[row_id] = {
+                "row_id": row_id,
                 "category": _safe_category(item.get("category")),
                 "reasoning": item.get("reasoning", ""),
-                "is_expense": bool(item.get("is_expense", float(source.get("amount", 0)) < 0)),
+                "is_expense": bool(item.get("is_expense", float(source["amount"]) < 0)),
                 "confidence": float(item.get("confidence", 0.5)),
             }
 
         return [
             mapped.get(
-                idx,
-                self.categorize_transaction(
-                    label=str(tx.get("label", "")),
-                    amount=float(tx.get("amount", 0.0)),
-                    merchant_hint=str(tx.get("merchant_hint", "")) or None,
-                ),
+                row["row_id"],
+                {
+                    "row_id": row["row_id"],
+                    **self.categorize_transaction(
+                        label=row["label"],
+                        amount=float(row["amount"]),
+                        merchant_hint=row["merchant_hint"] or None,
+                    ),
+                },
             )
-            for idx, tx in enumerate(transactions)
+            for row in payload_rows
         ]
 
     def is_recurring_pattern(
