@@ -58,6 +58,7 @@ def get_rule_for_label(session: Session, user_id: UUID | str, raw_label: str) ->
             EnrichmentRule.label_fingerprint == fingerprint,
         )
         .order_by(EnrichmentRule.updated_at.desc())
+        .limit(1)
     ).scalar_one_or_none()
 
 
