@@ -94,11 +94,7 @@ async def login(request: Request) -> RedirectResponse:
         )
 
     # Build Google OAuth URL - use backend URL for callback
-    # En production, le backend est accessible via /api sur le même domaine
-    if settings.is_production:
-        redirect_uri = f"{settings.frontend_url}/api/auth/callback"
-    else:
-        redirect_uri = "http://localhost:8000/auth/callback"
+    redirect_uri = f"{settings.backend_url}/auth/callback"
     scope = "openid email profile"
 
     google_auth_url = (

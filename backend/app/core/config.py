@@ -46,6 +46,9 @@ class Settings(BaseSettings):
 
     # Frontend
     frontend_url: str = "http://localhost:3000"  # Override with FRONTEND_URL env var in production
+    
+    # Backend
+    backend_url: str = "http://localhost:8000"  # Override with BACKEND_URL env var in production
 
     @property
     def database_url_sync(self) -> str:

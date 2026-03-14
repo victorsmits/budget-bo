@@ -49,6 +49,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
@@ -78,6 +79,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +105,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
     depends_on:
       redis:
         condition: service_healthy
