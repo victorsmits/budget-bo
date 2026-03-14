@@ -126,6 +126,7 @@ services:
       CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
       CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
       PYTHONPATH: /app
+      URL_PREFIX: /flower
       FLOWER_UNAUTHENTICATED_API: true
     ports:
       - "5555:5555"
