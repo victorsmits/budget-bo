@@ -87,6 +87,7 @@ services:
       - "8000:8000"
     networks:
       - budget-bo-network
+      - proxy
 
   worker:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
@@ -156,6 +157,7 @@ services:
       - "3000:3000"
     networks:
       - budget-bo-network
+      - proxy
 
 volumes:
   postgres_data:
@@ -163,5 +165,6 @@ volumes:
   woob_data:
 
 networks:
+  proxy:
+    external: true
   budget-bo-network:
-    driver: bridge
