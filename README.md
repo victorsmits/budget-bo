@@ -19,6 +19,7 @@
 - [Installation rapide](#-installation-rapide)
 - [Configuration](#-configuration)
 - [Démarrage](#-démarrage)
+- [Déploiement production](#-déploiement-production)
 - [API Endpoints](#-api-endpoints)
 - [Services](#-services)
 - [Structure du projet](#-structure-du-projet)
@@ -214,6 +215,52 @@ Voir le guide détaillé : [`docs/GUIDE_GOOGLE_OAUTH.md`](docs/GUIDE_GOOGLE_OAUT
 4. **Copier Client ID + Secret** dans `.env`
 
 ---
+
+
+## 🚀 Déploiement production
+
+### 1) Build & publication automatiques sur Docker Hub
+
+Le workflow GitHub Actions `docker-prod.yml` construit et publie **2 images publiques** multi-arch (`amd64` + `arm64`) :
+
+- `docker.io/<DOCKERHUB_USERNAME>/budget-bo-backend`
+- `docker.io/<DOCKERHUB_USERNAME>/budget-bo-frontend`
+
+Il se déclenche sur :
+- push sur `main`
+- tags `v*`
+- lancement manuel (`workflow_dispatch`)
+
+Secrets GitHub requis :
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+### 2) Lancer la stack production
+
+Utilise le compose dédié :
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env up -d
+```
+
+Variables importantes à définir dans `.env` :
+- `DOCKERHUB_NAMESPACE` (ex: ton username Docker Hub)
+- `IMAGE_TAG` (ex: `latest` ou un tag `v1.0.0`)
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `SECRET_KEY`, `ENCRYPTION_KEY`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `FRONTEND_URL`, `NEXT_PUBLIC_API_URL`
+- `OLLAMA_BASE_URL` (**obligatoire** : URL de ton instance Ollama externe, ex: `http://10.0.0.25:11434`)
+
+### 3) Migrations Alembic automatiques
+
+Le service `migrate` exécute automatiquement `alembic upgrade head` avant le démarrage de `backend`, `worker` et `beat`.
+Ainsi, la base est migrée au lancement de la stack de production.
+
+### 4) Objectif images optimisées
+
+- **Backend**: build multi-stage avec dépendances de compilation gardées uniquement en builder, runtime minimal en `python:3.12-slim`.
+- **Frontend**: image Next.js standalone en `node:20-alpine` (runner léger).
 
 ## 🎬 Démarrage
 
