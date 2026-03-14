@@ -32,30 +32,6 @@ services:
     networks:
       - budget-bo-network
 
-  migrate:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-migrate-prod
-    restart: "no"
-    command: alembic upgrade heads
-    environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
-      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - budget-bo-network
-
   backend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
     container_name: budget-bo-backend-prod
