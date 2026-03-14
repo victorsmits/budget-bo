@@ -36,6 +36,7 @@ COPY ./worker ./worker
 COPY ./scripts ./scripts
 COPY ./alembic ./alembic
 COPY ./alembic.ini ./alembic.ini
+COPY ./custom_woob_modules ./custom_woob_modules
 
 # Optional dev stage kept for docker-compose local usage
 FROM builder AS development
@@ -77,6 +78,7 @@ COPY --from=builder /app/worker /app/worker
 COPY --from=builder /app/scripts /app/scripts
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
+COPY --from=builder /app/custom_woob_modules /app/custom_woob_modules
 
 USER appuser
 

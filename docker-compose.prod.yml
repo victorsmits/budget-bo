@@ -116,6 +116,26 @@ services:
     networks:
       - budget-bo-network
 
+  flower:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-flower-prod
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
+      PYTHONPATH: /app
+      FLOWER_UNAUTHENTICATED_API: true
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - budget-bo-network
+    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0
+
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
     container_name: budget-bo-frontend-prod
