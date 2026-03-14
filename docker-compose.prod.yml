@@ -108,6 +108,8 @@ services:
         condition: service_healthy
       worker:
         condition: service_started
+    volumes:
+      - celerybeat_data:/app/celerybeat-schedule
     networks:
       - budget-bo-network
 
@@ -131,6 +133,7 @@ volumes:
   postgres_data:
   redis_data:
   woob_data:
+  celerybeat_data:
 
 networks:
   budget-bo-network:
