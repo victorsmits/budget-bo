@@ -39,9 +39,9 @@ services:
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
       DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-40}
       DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
@@ -71,9 +71,9 @@ services:
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
       CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-8}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
@@ -98,9 +98,9 @@ services:
     environment:
       ENVIRONMENT: production
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
+      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
