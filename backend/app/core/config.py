@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     google_client_secret: Optional[str] = None
 
     # Frontend
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "http://localhost:3000"  # Override with FRONTEND_URL env var in production
 
     @property
     def database_url_sync(self) -> str:
