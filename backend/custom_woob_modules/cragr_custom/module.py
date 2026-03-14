@@ -1,5 +1,17 @@
 import sys
-sys.path.insert(0, '/root/.local/share/woob/modules/3.7')
+import os
+
+# Try different possible woob modules paths
+possible_paths = [
+    '/root/.local/share/woob/modules/3.7',  # root user (build time)
+    '/home/appuser/.local/share/woob/modules/3.7',  # appuser (production)
+    '/app/.local/share/woob/modules/3.7',  # app directory
+]
+
+for path in possible_paths:
+    if os.path.exists(path):
+        sys.path.insert(0, path)
+        break
 
 from woob_modules.cragr.module import CreditAgricoleModule
 from .browser import CragrCustomBrowser

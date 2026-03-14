@@ -70,7 +70,9 @@ RUN apt-get update \
 RUN groupadd --system --gid 1001 appuser \
     && useradd --system --uid 1001 --gid 1001 --create-home appuser \
     && mkdir -p /app/celerybeat-data \
-    && chown appuser:appuser /app/celerybeat-data
+    && mkdir -p /home/appuser/.local/share/woob \
+    && chown -R appuser:appuser /app/celerybeat-data \
+    && chown -R appuser:appuser /home/appuser/.local
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/app /app/app
@@ -79,6 +81,7 @@ COPY --from=builder /app/scripts /app/scripts
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 COPY --from=builder /app/custom_woob_modules /app/custom_woob_modules
+COPY --from=builder /root/.local/share/woob /home/appuser/.local/share/woob
 
 USER appuser
 
