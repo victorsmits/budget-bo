@@ -149,8 +149,11 @@ async def auth_callback(
     # Create session cookie
     session_token = encryption.encrypt(str(user.id))
 
-    # Log pour debug
-    print(f"REDIRECT VERS: {settings.frontend_url}")
+    # Log pour debug avec uvicorn
+    import logging
+    logger = logging.getLogger("uvicorn.error")
+    logger.setLevel(logging.INFO)
+    logger.info(f"REDIRECT VERS: {settings.frontend_url}")
     
     response = RedirectResponse(url=settings.frontend_url)
     response.set_cookie(
