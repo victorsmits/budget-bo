@@ -252,8 +252,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
     return stats
 
 
-def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions: int = 100) -> dict[str, int]:
-    del days_back
+def enrich_user_transactions(user_id: str, max_transactions: int = 100) -> dict[str, int]:
     queryset = (
         Transaction.objects.select_related("user")
         .filter(user_id=user_id, enriched_at__isnull=True)

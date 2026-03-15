@@ -274,7 +274,6 @@ def sync_credential_transactions(credential_id, days_back=7):
                 enrichment_job = queue.enqueue(
                     enrich_user_transactions,
                     str(credential.user.id),
-                    days_back,
                     pending_enrichment_count,
                 )
 

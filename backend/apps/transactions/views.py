@@ -104,7 +104,7 @@ def transaction_enrich_bulk(request):
     serializer.is_valid(raise_exception=True)
 
     max_transactions = serializer.validated_data["max_transactions"]
-    days_back = serializer.validated_data["days_back"]
+    _unused_days_back = serializer.validated_data["days_back"]  # kept for API compatibility
     worker_count = serializer.validated_data["worker_count"]
     enrich_all = serializer.validated_data["enrich_all"]
 
@@ -122,7 +122,6 @@ def transaction_enrich_bulk(request):
         job = queue.enqueue(
             enrich_user_transactions,
             str(request.user.id),
-            days_back,
             len(tx_ids),
         )
         return Response(
