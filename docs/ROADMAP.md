@@ -37,7 +37,7 @@ Roadmap exhaustive du projet SaaS Spending Tracker, basée sur l'objectif initia
 ### Domain Logic
 | Tâche | Fichier | Statut |
 |-------|---------|--------|
-| **Recurrence Detector** | `domain/recurrence.py` - Levenshtein + pattern analysis | ✅ |
+| **Recurrence Detector** | Logique récurrente intégrée côté Django `apps/recurring` | ✅ |
 | **Transaction Patterns** | Détection fréquence, amount stability | ✅ |
 
 ---
@@ -50,7 +50,7 @@ Roadmap exhaustive du projet SaaS Spending Tracker, basée sur l'objectif initia
 | **Ollama IA** | `services/ollama.py` - normalize_label(), categorize() | ✅ |
 | **Woob Banking** | `worker/tasks/sync_tasks.py` - cragr + mock fallback | ✅ |
 | **Celery Workers** | 3 tasks avec retry logic | ✅ |
-| **Recurring Service** | `services/recurring.py` - analyze_user_transactions() | ✅ |
+| **Recurring Service** | Service legacy FastAPI supprimé (migration Django terminée) | ✅ |
 
 ### Celery Tasks
 | Task | Description | Retry | Statut |
