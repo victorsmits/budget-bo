@@ -1,6 +1,6 @@
 import re
 
-from django.db.models import Q, Sum, Value
+from django.db.models import Q, Sum,Count, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django_rq import get_queue
@@ -55,6 +55,7 @@ def transaction_summary(request):
         qs.annotate(effective_category=Coalesce("enrichment_rule__category", "category", Value("other")))
         .values("effective_category")
         .annotate(total=Sum("amount"))
+        .annotate(count=Count("id"))
         .order_by("effective_category")
     )
     for item in by_category:
