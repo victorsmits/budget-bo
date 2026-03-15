@@ -59,13 +59,14 @@ class GeminiEnrichmentService:
         self._apply_rate_limit()
         prompt = build_batch_prompt(transactions)
 
+        # Gemini SDK does not support response_mime_type="application/json" when tools are enabled.
+        # We enforce JSON via prompt instructions and parse with tolerant fallback.
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.1,
-                response_mime_type="application/json",
             ),
         )
 
