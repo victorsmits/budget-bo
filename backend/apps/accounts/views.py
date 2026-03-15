@@ -1,3 +1,4 @@
+import os
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.shortcuts import redirect
@@ -12,6 +13,8 @@ from .serializers import UserMeSerializer
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def auth_login(request):
+    if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
+        return Response({"detail": "Google OAuth is not configured"}, status=503)
     return redirect("/accounts/google/login/")
 
 
