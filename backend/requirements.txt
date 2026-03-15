@@ -1,0 +1,13 @@
+django>=5.0
+djangorestframework>=3.15
+django-allauth[socialaccount]>=0.63
+django-rq>=2.10
+django-rq-dashboard>=0.6
+django-cors-headers>=4.3
+psycopg2-binary>=2.9
+redis>=5.0
+cryptography>=42.0
+ollama>=0.2
+httpx>=0.27
+python-dotenv>=1.0
+gunicorn>=22.0

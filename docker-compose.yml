@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: budget-bo-postgres
@@ -16,10 +15,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - budget-bo-network
+    networks: [budget-bo-network]
 
-  # Redis - Broker for Celery + Cache
   redis:
     image: redis:7-alpine
     container_name: budget-bo-redis
@@ -30,174 +27,66 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - budget-bo-network
+    networks: [budget-bo-network]
 
-  # Ollama - Local AI Inference
   ollama:
     image: ollama/ollama:latest
     container_name: budget-bo-ollama
-    ports:
-      - "11434:11434"
+    ports: ["11434:11434"]
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/11434'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 120s
-    networks:
-      - budget-bo-network
-    # GPU support disabled - runs on CPU
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    networks: [budget-bo-network]
 
-  # FastAPI Backend
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
+    build: ./backend
     container_name: budget-bo-backend
+    command: python manage.py runserver 0.0.0.0:8000
     environment:
-      - ENVIRONMENT=development
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
       - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DB_POOL_SIZE=10
-      - DB_MAX_OVERFLOW=20
-      - DB_POOL_TIMEOUT=30
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b}
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - backend_venv:/app/.venv
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - budget-bo-network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Celery Worker - All Queues (Sync + Enrich + Default)
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    container_name: budget-bo-worker
-    environment:
-      - ENVIRONMENT=development
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - CELERY_WORKER_CONCURRENCY=8
-      - DB_POOL_SIZE=10
-      - DB_MAX_OVERFLOW=20
-      - DB_POOL_TIMEOUT=30
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral:7b}
-      - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
+    ports: ["8000:8000"]
     volumes:
       - ./backend:/app
-      - backend_venv:/app/.venv
-      - woob_data:/root/.woob
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - budget-bo-network
-    command: celery -A worker.celery_app worker -Q sync,enrich,default --loglevel=info --concurrency=8 -n worker@%h
+    networks: [budget-bo-network]
 
-  # Celery Beat (Scheduler)
-  beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    container_name: budget-bo-beat
+  rq-worker:
+    build: ./backend
+    container_name: budget-bo-rq-worker
+    command: python manage.py rqworker sync enrich default
     environment:
-      - ENVIRONMENT=development
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
       - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DB_POOL_SIZE=5
-      - DB_MAX_OVERFLOW=10
-      - DB_POOL_TIMEOUT=30
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
     volumes:
       - ./backend:/app
-      - backend_venv:/app/.venv
-
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - budget-bo-network
-    command: celery -A worker.celery_app beat --loglevel=info
-
-  # Flower - Celery Dashboard
-  flower:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    container_name: budget-bo-flower
-    environment:
-      - ENVIRONMENT=development
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - PYTHONPATH=/app
-      - FLOWER_UNAUTHENTICATED_API=true
-    volumes:
-      - ./backend:/app
-      - backend_venv:/app/.venv
-
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
-      - worker
-    networks:
-      - budget-bo-network
-    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0
-
-  # NOTE: Frontend runs natively with 'npm run dev' for better DX
-  # See README.md for development setup
+    networks: [budget-bo-network]
 
 volumes:
   postgres_data:
   redis_data:
   ollama_data:
-  woob_data:
-  backend_venv:
 
 networks:
   budget-bo-network:
