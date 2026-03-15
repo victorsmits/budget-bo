@@ -7,11 +7,7 @@ from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.jobs.enrich import (
-    enrich_single_transaction,
-    enrich_user_transactions,
-    enrich_user_transactions_chunk,
-)
+from apps.jobs.enrich import enrich_single_transaction, enqueue_user_enrichment_jobs
 
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
@@ -142,51 +138,22 @@ def transaction_enrich_bulk(request):
         return Response({"status": "nothing_to_enqueue", "job_ids": [], "worker_count": 0, "transaction_count": 0})
 
     queue = get_queue("enrich")
-
-    if worker_count <= 1:
-        job = queue.enqueue(
-            enrich_user_transactions,
-            str(request.user.id),
-            len(tx_ids),
-        )
-        return Response(
-            {
-                "job_ids": [job.id],
-                "status": "queued",
-                "user_id": str(request.user.id),
-                "transaction_count": len(tx_ids),
-                "worker_count": 1,
-                "chunk_sizes": [len(tx_ids)],
-                "enrich_all": enrich_all,
-            }
-        )
-
-    actual_workers = min(worker_count, len(tx_ids))
-    chunks: list[list[str]] = [[] for _ in range(actual_workers)]
-    for index, tx_id in enumerate(tx_ids):
-        chunks[index % actual_workers].append(tx_id)
-
-    job_ids: list[str] = []
-    chunk_sizes: list[int] = []
-    for chunk in chunks:
-        if not chunk:
-            continue
-        job = queue.enqueue(
-            enrich_user_transactions_chunk,
-            str(request.user.id),
-            chunk,
-        )
-        job_ids.append(job.id)
-        chunk_sizes.append(len(chunk))
+    chunk_plan = enqueue_user_enrichment_jobs(
+        user_id=str(request.user.id),
+        transaction_ids=tx_ids,
+        queue=queue,
+    )
 
     return Response(
         {
-            "job_ids": job_ids,
-            "status": "queued",
+            "job_ids": chunk_plan["job_ids"],
+            "status": chunk_plan["status"],
             "user_id": str(request.user.id),
             "transaction_count": len(tx_ids),
-            "worker_count": len(job_ids),
-            "chunk_sizes": chunk_sizes,
+            "worker_count": chunk_plan["worker_count"],
+            "chunk_sizes": chunk_plan["chunk_sizes"],
+            "chunk_size": chunk_plan["chunk_size"],
+            "requested_worker_count": worker_count,
             "enrich_all": enrich_all,
         }
     )

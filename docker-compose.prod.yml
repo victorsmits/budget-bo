@@ -14,7 +14,7 @@ x-rq-worker-env: &rq_worker_env
 x-rq-worker-base: &rq_worker_base
   image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
   restart: unless-stopped
-  command: python manage.py rqworker sync enrich default
+  command: python manage.py rqworker --worker-class ${RQ_WORKER_CLASS:-rq.SimpleWorker} sync enrich default
   environment: *rq_worker_env
   depends_on:
     postgres:

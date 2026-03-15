@@ -128,6 +128,10 @@ docker compose exec backend python manage.py shell
 docker compose exec backend python manage.py test
 ```
 
+> Note: si le worker quitte avec `Work-horse terminated unexpectedly; waitpid returned None`, utilisez `RQ_WORKER_CLASS=rq.SimpleWorker` (défaut dans ce repo) pour éviter le mode fork/work-horse.
+
+> L'enrichissement bulk est automatiquement découpé en plusieurs jobs (X workers, Y transactions/worker) pour limiter la consommation API par worker. Ajustez `ENRICH_MAX_WORKERS` et `ENRICH_TARGET_API_CALLS_PER_JOB` selon votre quota.
+
 ## Documentation détaillée
 
 - OAuth: `docs/GUIDE_GOOGLE_OAUTH.md`
