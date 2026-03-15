@@ -6,6 +6,17 @@ interface FetchOptions extends RequestInit {
   requireAuth?: boolean
 }
 
+
+const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"])
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) return parts.pop()!.split(";").shift() || null
+  return null
+}
+
 export async function apiClient(
   endpoint: string,
   options: FetchOptions = {}
@@ -17,6 +28,14 @@ export async function apiClient(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((fetchOptions.headers as Record<string, string>) || {}),
+  }
+
+  const method = (fetchOptions.method || "GET").toUpperCase()
+  if (!CSRF_SAFE_METHODS.has(method)) {
+    const csrfToken = getCookie("csrftoken")
+    if (csrfToken) {
+      headers["X-CSRFToken"] = csrfToken
+    }
   }
 
   const config: RequestInit = {
