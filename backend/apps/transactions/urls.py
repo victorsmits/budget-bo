@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path("", views.transaction_list),
+    path("enrich", views.transaction_enrich_bulk),
     path("summary", views.transaction_summary),
     path("<uuid:transaction_id>", views.transaction_detail_or_delete),
     path("<uuid:transaction_id>/category", views.transaction_category_patch),

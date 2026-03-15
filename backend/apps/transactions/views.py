@@ -4,11 +4,11 @@ from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.jobs.enrich import enrich_single_transaction
+from apps.jobs.enrich import enrich_single_transaction, enrich_user_transactions
 
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
-from .serializers import RecurringFlagSerializer, TransactionCategoryPatchSerializer, TransactionCorrectionSerializer, TransactionSerializer
+from .serializers import RecurringFlagSerializer, TransactionBulkEnrichSerializer, TransactionCategoryPatchSerializer, TransactionCorrectionSerializer, TransactionSerializer
 
 
 @api_view(["GET"])
@@ -75,6 +75,32 @@ def transaction_correction_patch(request, transaction_id):
         },
     )
     return Response(TransactionSerializer(tx).data)
+
+
+@api_view(["POST"])
+def transaction_enrich_bulk(request):
+    serializer = TransactionBulkEnrichSerializer(data=request.data or {})
+    serializer.is_valid(raise_exception=True)
+
+    max_transactions = serializer.validated_data["max_transactions"]
+    days_back = serializer.validated_data["days_back"]
+
+    queue = get_queue("enrich")
+    job = queue.enqueue(
+        enrich_user_transactions,
+        str(request.user.id),
+        days_back,
+        max_transactions,
+    )
+    return Response(
+        {
+            "job_id": job.id,
+            "status": "queued",
+            "user_id": str(request.user.id),
+            "max_transactions": max_transactions,
+            "days_back": days_back,
+        }
+    )
 
 
 @api_view(["POST"])

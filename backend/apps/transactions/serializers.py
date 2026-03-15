@@ -27,3 +27,8 @@ class EnrichmentRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = EnrichmentRule
         fields = "__all__"
+
+
+class TransactionBulkEnrichSerializer(serializers.Serializer):
+    max_transactions = serializers.IntegerField(min_value=1, max_value=500, required=False, default=100)
+    days_back = serializers.IntegerField(min_value=1, max_value=365, required=False, default=7)
