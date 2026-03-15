@@ -152,15 +152,7 @@ def enrich_single_transaction(transaction_id: str) -> dict:
     return {"transaction_id": str(transaction_id), "status": "enriched_from_gemini"}
 
 
-def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions: int = 100) -> dict[str, int]:
-    del days_back
-    queryset = (
-        Transaction.objects.select_related("user")
-        .filter(user_id=user_id, enriched_at__isnull=True)
-        .order_by("date")[:max_transactions]
-    )
-    transactions = list(queryset)
-
+def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[str, int]:
     stats = {
         "enriched_from_cache": 0,
         "enriched_from_gemini": 0,
@@ -229,4 +221,25 @@ def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions:
             ],
         )
 
+    return stats
+
+
+def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions: int = 100) -> dict[str, int]:
+    del days_back
+    queryset = (
+        Transaction.objects.select_related("user")
+        .filter(user_id=user_id, enriched_at__isnull=True)
+        .order_by("date")[:max_transactions]
+    )
+    return _enrich_transactions(list(queryset), user_id)
+
+
+def enrich_user_transactions_chunk(user_id: str, transaction_ids: list[str]) -> dict[str, int | str]:
+    queryset = (
+        Transaction.objects.select_related("user")
+        .filter(user_id=user_id, enriched_at__isnull=True, id__in=transaction_ids)
+        .order_by("date")
+    )
+    stats = _enrich_transactions(list(queryset), user_id)
+    stats["worker"] = "chunk"
     return stats

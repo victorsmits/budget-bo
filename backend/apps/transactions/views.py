@@ -4,7 +4,11 @@ from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.jobs.enrich import enrich_single_transaction, enrich_user_transactions
+from apps.jobs.enrich import (
+    enrich_single_transaction,
+    enrich_user_transactions,
+    enrich_user_transactions_chunk,
+)
 
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
@@ -84,21 +88,65 @@ def transaction_enrich_bulk(request):
 
     max_transactions = serializer.validated_data["max_transactions"]
     days_back = serializer.validated_data["days_back"]
+    worker_count = serializer.validated_data["worker_count"]
+    enrich_all = serializer.validated_data["enrich_all"]
+
+    pending_qs = Transaction.objects.filter(user=request.user, enriched_at__isnull=True).order_by("date", "created_at")
+    if not enrich_all:
+        pending_qs = pending_qs[:max_transactions]
+
+    tx_ids = [str(tx_id) for tx_id in pending_qs.values_list("id", flat=True)]
+    if not tx_ids:
+        return Response({"status": "nothing_to_enqueue", "job_ids": [], "worker_count": 0, "transaction_count": 0})
 
     queue = get_queue("enrich")
-    job = queue.enqueue(
-        enrich_user_transactions,
-        str(request.user.id),
-        days_back,
-        max_transactions,
-    )
+
+    if worker_count <= 1:
+        job = queue.enqueue(
+            enrich_user_transactions,
+            str(request.user.id),
+            days_back,
+            len(tx_ids),
+        )
+        return Response(
+            {
+                "job_ids": [job.id],
+                "status": "queued",
+                "user_id": str(request.user.id),
+                "transaction_count": len(tx_ids),
+                "worker_count": 1,
+                "chunk_sizes": [len(tx_ids)],
+                "enrich_all": enrich_all,
+            }
+        )
+
+    actual_workers = min(worker_count, len(tx_ids))
+    chunks: list[list[str]] = [[] for _ in range(actual_workers)]
+    for index, tx_id in enumerate(tx_ids):
+        chunks[index % actual_workers].append(tx_id)
+
+    job_ids: list[str] = []
+    chunk_sizes: list[int] = []
+    for chunk in chunks:
+        if not chunk:
+            continue
+        job = queue.enqueue(
+            enrich_user_transactions_chunk,
+            str(request.user.id),
+            chunk,
+        )
+        job_ids.append(job.id)
+        chunk_sizes.append(len(chunk))
+
     return Response(
         {
-            "job_id": job.id,
+            "job_ids": job_ids,
             "status": "queued",
             "user_id": str(request.user.id),
-            "max_transactions": max_transactions,
-            "days_back": days_back,
+            "transaction_count": len(tx_ids),
+            "worker_count": len(job_ids),
+            "chunk_sizes": chunk_sizes,
+            "enrich_all": enrich_all,
         }
     )
 
