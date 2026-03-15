@@ -11,7 +11,8 @@ def build_batch_prompt(transactions: list[object]) -> str:
     lines: list[str] = []
     for idx, tx in enumerate(transactions):
         lines.append(
-            f'[{idx}] raw_label="{getattr(tx, "raw_label", "")}" | '
+            f'[{idx}] tx_id="{getattr(tx, "id", "")}" | '
+            f'raw_label="{getattr(tx, "raw_label", "")}" | '
             f'amount={getattr(tx, "amount", 0)} | '
             f'date="{getattr(tx, "date", "")}"'
         )
@@ -28,9 +29,10 @@ def build_batch_prompt(transactions: list[object]) -> str:
         "- \"income\" UNIQUEMENT si signal explicite : salaire, virement entrant, remboursement\n"
         "- groceries = supermarché ; dining = restaurant/livraison ; transportation = essence/péage\n"
         "- Si cleaned_label introuvable → renvoie \"\"  (jamais copier le libellé brut)\n"
+        "- Utilise EXACTEMENT tx_id comme valeur de id dans la réponse JSON\n"
         "- Réponds UNIQUEMENT avec ce JSON, sans texte avant/après :\n\n"
         '{"results": [\n'
-        '  {"id": 0, "cleaned_label": "...", "merchant_name": "...", "category": "...",\n'
+        '  {"id": "tx_uuid", "index": 0, "cleaned_label": "...", "merchant_name": "...", "category": "...",\n'
         '   "is_expense": true, "confidence": 0.95, "reasoning": "..."},\n'
         "  ...\n"
         "]}\n\n"

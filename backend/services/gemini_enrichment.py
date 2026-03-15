@@ -114,17 +114,28 @@ class GeminiEnrichmentService:
         if not isinstance(raw_results, list):
             raw_results = []
 
+        by_tx_id: dict[str, dict] = {}
         by_index: dict[int, dict] = {}
         for item in raw_results:
             if not isinstance(item, dict):
                 continue
-            idx = item.get("id")
-            if isinstance(idx, int):
-                by_index[idx] = item
+
+            result_id = item.get("id")
+            if result_id is not None:
+                by_tx_id[str(result_id)] = item
+
+            result_index = item.get("index")
+            if isinstance(result_index, int):
+                by_index[result_index] = item
+            elif isinstance(result_id, int):
+                by_index[result_id] = item
 
         mapped: list[EnrichmentResult] = []
         for idx, tx in enumerate(transactions):
-            mapped.append(self._build_result(tx, by_index.get(idx)))
+            candidate = by_tx_id.get(str(tx.id)) or by_index.get(idx)
+            if candidate is None and idx < len(raw_results) and isinstance(raw_results[idx], dict):
+                candidate = raw_results[idx]
+            mapped.append(self._build_result(tx, candidate))
 
         return mapped
 
