@@ -128,6 +128,8 @@ docker compose exec backend python manage.py shell
 docker compose exec backend python manage.py test
 ```
 
+> Note: si le worker quitte avec `Work-horse terminated unexpectedly; waitpid returned None`, utilisez `RQ_WORKER_CLASS=rq.SimpleWorker` (défaut dans ce repo) pour éviter le mode fork/work-horse.
+
 ## Documentation détaillée
 
 - OAuth: `docs/GUIDE_GOOGLE_OAUTH.md`

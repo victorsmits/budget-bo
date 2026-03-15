@@ -60,7 +60,7 @@ services:
   rq-worker:
     build: ./backend
     container_name: budget-bo-rq-worker
-    command: python manage.py rqworker sync enrich default
+    command: python manage.py rqworker --worker-class ${RQ_WORKER_CLASS:-rq.SimpleWorker} sync enrich default
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.development
       - DATABASE_URL=postgresql://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
