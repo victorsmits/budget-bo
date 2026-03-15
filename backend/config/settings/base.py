@@ -108,6 +108,9 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# URL de base pour les callbacks OAuth (important pour le reverse proxy)
+OAUTH_BASE_URL = os.getenv("OAUTH_BASE_URL", "")
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True

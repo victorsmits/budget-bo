@@ -25,6 +25,7 @@ def auth_login(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def auth_callback(request):
+    # En prod, on redirige vers le frontend sans /api (c'est le frontend qui gère)
     return redirect(settings.FRONTEND_URL)
 
 
