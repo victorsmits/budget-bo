@@ -57,16 +57,14 @@ def _get_matching_rule(transaction: Transaction) -> EnrichmentRule | None:
 
 
 def _apply_rule(transaction: Transaction, rule: EnrichmentRule) -> None:
-    transaction.cleaned_label = rule.cleaned_label
-    transaction.merchant_name = rule.merchant_name
-    transaction.category = rule.category
+    transaction.enrichment_rule = rule
     transaction.ai_confidence = 1.0
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = "Learned from previous user correction"
     transaction.enriched_at = timezone.now()
 
 
-def _upsert_rule_from_transaction(transaction: Transaction) -> None:
+def _upsert_rule_from_transaction(transaction: Transaction) -> EnrichmentRule:
     fingerprint = _label_fingerprint(transaction.raw_label)
     rule, created = EnrichmentRule.objects.get_or_create(
         user=transaction.user,
@@ -96,7 +94,8 @@ def _upsert_rule_from_transaction(transaction: Transaction) -> None:
             ]
         )
 
-
+    transaction.enrichment_rule = rule
+    return rule
 
 
 def _persist_transaction(transaction: Transaction) -> None:
@@ -106,6 +105,7 @@ def _persist_transaction(transaction: Transaction) -> None:
             "merchant_name",
             "category",
             "is_expense",
+            "enrichment_rule",
             "ai_confidence",
             "enriched_at",
             "updated_at",
@@ -126,9 +126,9 @@ def _serialize_ai_result(result: Any) -> dict[str, Any]:
 def _serialize_transaction_state(transaction: Transaction) -> dict[str, Any]:
     return {
         "transaction_id": str(transaction.id),
-        "cleaned_label": transaction.cleaned_label,
-        "merchant_name": transaction.merchant_name,
-        "category": transaction.category,
+        "cleaned_label": transaction.display_label,
+        "merchant_name": transaction.display_merchant,
+        "category": transaction.display_category,
         "is_expense": transaction.is_expense,
         "ai_confidence": transaction.ai_confidence,
         "ai_category_reasoning": getattr(transaction, "ai_category_reasoning", ""),
@@ -170,10 +170,7 @@ def enrich_single_transaction(transaction_id: str) -> dict:
         _apply_rule(transaction, rule)
         transaction.save(
             update_fields=[
-                "cleaned_label",
-                "merchant_name",
-                "category",
-                "is_expense",
+                "enrichment_rule",
                 "ai_confidence",
                 "enriched_at",
                 "updated_at",
@@ -210,12 +207,14 @@ def enrich_single_transaction(transaction_id: str) -> dict:
             "merchant_name",
             "category",
             "is_expense",
+            "enrichment_rule",
             "ai_confidence",
             "enriched_at",
             "updated_at",
         ]
     )
-    _upsert_rule_from_transaction(transaction)
+    transaction.enrichment_rule = _upsert_rule_from_transaction(transaction)
+    transaction.save(update_fields=["enrichment_rule", "updated_at"])
 
     return {
         "transaction_id": str(transaction_id),
@@ -242,7 +241,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
             continue
 
         _apply_rule(tx, rule)
-        _persist_transaction(tx)
+        tx.save(update_fields=["enrichment_rule", "ai_confidence", "enriched_at", "updated_at"])
         stats["enriched_from_cache"] += 1
 
     max_batch_size = settings.GEMINI_MAX_BATCH_SIZE
@@ -288,7 +287,8 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
                 }
             )
             try:
-                _upsert_rule_from_transaction(tx)
+                tx.enrichment_rule = _upsert_rule_from_transaction(tx)
+                tx.save(update_fields=["enrichment_rule", "updated_at"])
             except Exception:
                 logger.exception("Failed to upsert enrichment rule", extra={"transaction_id": str(tx.id), "user_id": str(user_id)})
             stats["enriched_from_gemini"] += 1
