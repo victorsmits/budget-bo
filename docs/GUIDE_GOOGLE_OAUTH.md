@@ -24,6 +24,8 @@ Dans **APIs & Services > Credentials**:
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 FRONTEND_URL=http://localhost:3000
+# Production only - Force HTTPS in OAuth callbacks
+OAUTH_BASE_URL=https://budget.victorsmits.com
 ```
 
 ## Flux de connexion
@@ -48,7 +50,15 @@ FRONTEND_URL=http://localhost:3000
 ### `redirect_uri_mismatch`
 
 Vérifie l'URI exacte déclarée dans Google Cloud:
-- `http://localhost:8000/auth/social/google/login/callback/`
+- En dev: `http://localhost:8000/auth/social/google/login/callback/`
+- En prod: `https://budget.victorsmits.com/auth/social/google/login/callback/`
+
+### Callback HTTP en production
+
+Si le callback est en HTTP au lieu de HTTPS:
+1. Ajoutez `OAUTH_BASE_URL=https://budget.victorsmits.com` dans votre `.env`
+2. Redémarrez le backend
+3. Mettez à jour l'URI autorisée dans Google Cloud
 
 ### `Google OAuth is not configured` (503)
 

@@ -105,6 +105,7 @@ SOCIALACCOUNT_PROVIDERS = {
         },
         "SCOPE": ["profile", "email"],
         "AUTH_PARAMS": {"access_type": "online"},
+        "OAUTH2_ADAPTER": "apps.accounts.oauth_adapter.BudgetBoGoogleOAuth2Adapter",
     }
 }
 
