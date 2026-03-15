@@ -69,14 +69,14 @@ export const api = {
 
   // Transactions
   transactions: {
-    list: (params?: { category?: string; start_date?: string; end_date?: string; page?: number; size?: number; search?: string }) => {
+    list: (params?: { category?: string; is_expense?: boolean; date_from?: string; date_to?: string; page?: number; size?: number }) => {
       const searchParams = new URLSearchParams()
       if (params?.category) searchParams.append("category", params.category)
-      if (params?.start_date) searchParams.append("start_date", params.start_date)
-      if (params?.end_date) searchParams.append("end_date", params.end_date)
+      if (typeof params?.is_expense === "boolean") searchParams.append("is_expense", String(params.is_expense))
+      if (params?.date_from) searchParams.append("date_from", params.date_from)
+      if (params?.date_to) searchParams.append("date_to", params.date_to)
       if (params?.page) searchParams.append("page", params.page.toString())
       if (params?.size) searchParams.append("size", params.size.toString())
-      if (params?.search) searchParams.append("search", params.search)
       const query = searchParams.toString()
       return apiClient(`/transactions${query ? `?${query}` : ""}`)
     },
@@ -90,21 +90,10 @@ export const api = {
   // Recurring
   recurring: {
     list: () => apiClient("/recurring"),
-    upcoming: (days_ahead?: number) => apiClient(`/recurring/upcoming${days_ahead ? `?days_ahead=${days_ahead}` : ""}`),
-    get: (id: string) => apiClient(`/recurring/${id}`),
-    detect: (months_back?: number) =>
-      apiClient("/recurring/detect", {
-        method: "POST",
-        body: JSON.stringify({ months_back: months_back || 6 }),
-      }),
-    cancel: (id: string) => apiClient(`/recurring/${id}/cancel`, { method: "POST" }),
-    rename: (id: string, new_name: string) =>
-      apiClient(`/recurring/${id}/rename`, {
-        method: "PATCH",
-        body: JSON.stringify({ new_name }),
-      }),
+    upcoming: () => apiClient("/recurring/upcoming"),
+    detect: () => apiClient("/recurring/detect", { method: "POST" }),
     delete: (id: string) => apiClient(`/recurring/${id}`, { method: "DELETE" }),
-    stats: () => apiClient("/recurring/stats/summary"),
+    summary: () => apiClient("/recurring/stats/summary"),
   },
 
   // Credentials

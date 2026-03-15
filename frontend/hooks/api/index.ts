@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 export function useDashboardData() {
   const summary = useTransactionSummary()
   const recentTransactions = useRecentTransactions(5)
-  const upcomingRecurring = useUpcomingRecurring(30)
+  const upcomingRecurring = useUpcomingRecurring()
   const credentials = useCredentials()
   const syncCredential = useSyncCredential()
 
