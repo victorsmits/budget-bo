@@ -38,7 +38,7 @@ function TransactionsContent() {
   }
 
   useEffect(() => {
-    api.transactions.list({ page, size: 20, ...(category ? { category } : {}), ...(search ? { search } : {}) }).then((data) => {
+    api.transactions.list({ page, size: 20, ...(category ? { category } : {}) }).then((data) => {
       setItems(data.items || [])
       setPages(data.pages || 1)
       setTotal(data.total || 0)

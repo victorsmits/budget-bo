@@ -55,27 +55,12 @@ export interface RecurringExpense {
   created_at: string
 }
 
-export interface RecurringExpenseTransactionSummary {
-  transaction_id: string
-  date: string
-  amount: number
-  merchant_name?: string | null
-  cleaned_label?: string | null
-  category: string
-}
-
-export interface RecurringExpenseDetail extends RecurringExpense {
-  payment_schedule: string[]
-  transactions: RecurringExpenseTransactionSummary[]
-}
 
 // Types pour le résumé
 export interface SummaryData {
-  period: { start: string; end: string }
   total_expenses: number
   total_income: number
-  net: number
-  by_category: { category: string; total: number; count: number }[]
+  by_category: { category: string; total: number }[]
 }
 
 // Types pour les identifiants bancaires
@@ -92,15 +77,14 @@ export interface Credential {
 // Types additionnels pour les filtres et stats
 export interface TransactionFilters {
   category?: string
-  start_date?: string
-  end_date?: string
+  is_expense?: boolean
+  date_from?: string
+  date_to?: string
   page?: number
   size?: number
-  search?: string
 }
 
-export interface RecurringStats {
-  total_patterns: number
-  total_monthly_amount: number
-  categories: { category: string; count: number; total_amount: number }[]
+export interface RecurringSummary {
+  active_count: number
+  estimated_monthly_total: number
 }
