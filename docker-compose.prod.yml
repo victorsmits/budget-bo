@@ -14,8 +14,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - budget-bo-network
+    networks: [budget-bo-network]
 
   redis:
     image: redis:7-alpine
@@ -29,35 +28,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - budget-bo-network
+    networks: [budget-bo-network]
 
   backend:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
     container_name: budget-bo-backend-prod
     restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-120}"
     environment:
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
-      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
-      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-40}
-      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
       GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
       GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,26 +63,28 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
-    networks:
-      - budget-bo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [budget-bo-network]
 
-  worker:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-worker-prod
+  rq-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: budget-bo-rq-worker-prod
     restart: unless-stopped
-    command: celery -A worker.celery_app worker -Q sync,enrich,default --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-8} -n worker@%h
+    command: python manage.py rqworker sync enrich default
     environment:
       ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
-      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-8}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
@@ -95,84 +95,39 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - woob_data:/home/appuser/.woob
-    networks:
-      - budget-bo-network
-
-  beat:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-beat-prod
-    restart: unless-stopped
-    command: celery -A worker.celery_app beat --loglevel=info --schedule=/app/celerybeat-data/celerybeat-schedule
-    environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
-      GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
-      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
-      GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
-    depends_on:
-      redis:
-        condition: service_healthy
-      worker:
+      backend:
         condition: service_started
-    volumes:
-      - celerybeat_data:/app/celerybeat-data
-    networks:
-      - budget-bo-network
-
-  flower:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-flower-prod
-    restart: unless-stopped
-    environment:
-      ENVIRONMENT: production
-      REDIS_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_BROKER_URL: redis://budget-bo-redis-prod:6379/0
-      CELERY_RESULT_BACKEND: redis://budget-bo-redis-prod:6379/0
-      PYTHONPATH: /app
-      URL_PREFIX: flower
-      FLOWER_UNAUTHENTICATED_API: true
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
-      - worker
-    networks:
-      - budget-bo-network
-    command: celery -A worker.celery_app flower --port=5555 --bind=0.0.0.0 --url_prefix=flower
+    networks: [budget-bo-network]
 
   frontend:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
     container_name: budget-bo-frontend-prod
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:8000}
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
     depends_on:
       backend:
         condition: service_started
     ports:
       - "3000:3000"
-    networks:
-      - budget-bo-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [budget-bo-network]
 
 volumes:
   postgres_data:
   redis_data:
-  woob_data:
-  celerybeat_data:
 
 networks:
   budget-bo-network:
+    driver: bridge
