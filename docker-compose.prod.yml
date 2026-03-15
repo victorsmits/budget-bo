@@ -14,7 +14,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [budget-bo-network]
+    networks:
+      - budget-bo-network
 
   redis:
     image: redis:7-alpine
@@ -28,34 +29,33 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [budget-bo-network]
+    networks:
+      - budget-bo-network
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
     container_name: budget-bo-backend-prod
     restart: unless-stopped
-    command: >
-      sh -c "python manage.py migrate &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-120}"
     environment:
       ENVIRONMENT: production
       DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
       GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
       GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+    command: >
+      sh -c "python manage.py migrate &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-120}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,24 +64,23 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/login/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/admin/login/"]
       interval: 30s
       timeout: 5s
       retries: 5
-    networks: [budget-bo-network]
+    networks:
+      - budget-bo-network
 
   rq-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
     container_name: budget-bo-rq-worker-prod
     restart: unless-stopped
     command: python manage.py rqworker sync enrich default
     environment:
       ENVIRONMENT: production
       DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
@@ -97,20 +96,16 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
-    networks: [budget-bo-network]
+    networks:
+      - budget-bo-network
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
     container_name: budget-bo-frontend-prod
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:8000}
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
     depends_on:
       backend:
@@ -122,7 +117,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
-    networks: [budget-bo-network]
+    networks:
+      - budget-bo-network
 
 volumes:
   postgres_data:
@@ -130,4 +126,3 @@ volumes:
 
 networks:
   budget-bo-network:
-    driver: bridge
