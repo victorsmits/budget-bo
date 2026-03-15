@@ -9,7 +9,7 @@ from django.utils import timezone
 from django_rq import get_queue
 
 from apps.bank_credentials.models import BankAccount, BankCredential
-from apps.jobs.enrich import enrich_user_transactions
+from apps.jobs.enrich import enqueue_user_enrichment_jobs
 from apps.transactions.models import Transaction
 from services.security import EncryptionService
 
@@ -269,12 +269,25 @@ def sync_credential_transactions(credential_id, days_back=7):
                     ]
                 )
 
-            enrichment_job = None
+            enqueued_jobs = {
+                "job_ids": [],
+                "worker_count": 0,
+                "chunk_sizes": [],
+                "chunk_size": 0,
+            }
             if pending_enrichment_count > 0:
-                enrichment_job = queue.enqueue(
-                    enrich_user_transactions,
-                    str(credential.user.id),
-                    pending_enrichment_count,
+                pending_tx_ids = list(
+                    Transaction.objects.filter(
+                        user=credential.user,
+                        enriched_at__isnull=True,
+                    )
+                    .order_by("date", "created_at")
+                    .values_list("id", flat=True)
+                )
+                enqueued_jobs = enqueue_user_enrichment_jobs(
+                    user_id=str(credential.user.id),
+                    transaction_ids=[str(tx_id) for tx_id in pending_tx_ids],
+                    queue=queue,
                 )
 
             return {
@@ -282,9 +295,12 @@ def sync_credential_transactions(credential_id, days_back=7):
                 "status": "success",
                 "inserted_transactions": inserted_count,
                 "upserted_accounts": upserted_accounts,
-                "enqueued_enrichment_jobs": 1 if enrichment_job else 0,
+                "enqueued_enrichment_jobs": len(enqueued_jobs["job_ids"]),
                 "pending_enrichment_transactions": pending_enrichment_count,
-                "enrichment_job_id": enrichment_job.id if enrichment_job else None,
+                "enrichment_job_ids": enqueued_jobs["job_ids"],
+                "enrichment_worker_count": enqueued_jobs["worker_count"],
+                "enrichment_chunk_sizes": enqueued_jobs["chunk_sizes"],
+                "enrichment_chunk_size": enqueued_jobs["chunk_size"],
             }
 
         except RETRYABLE_EXCEPTIONS as exc:

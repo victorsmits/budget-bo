@@ -1,8 +1,10 @@
 import logging
+import math
 import re
 from typing import Any
 
 from django.conf import settings
+from django_rq import get_queue
 from django.utils import timezone
 
 from apps.transactions.models import EnrichmentRule, Transaction, TransactionCategory
@@ -295,6 +297,63 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
 
     stats["ai_results"] = ai_results
     return stats
+
+
+def _compute_enrichment_chunk_plan(transaction_count: int) -> tuple[int, int]:
+    if transaction_count <= 0:
+        return 0, 0
+
+    max_batch_size = max(1, settings.GEMINI_MAX_BATCH_SIZE)
+    max_workers = max(1, int(getattr(settings, "ENRICH_MAX_WORKERS", 8)))
+    target_api_calls_per_job = max(1, int(getattr(settings, "ENRICH_TARGET_API_CALLS_PER_JOB", 2)))
+
+    target_chunk_size = max_batch_size * target_api_calls_per_job
+    worker_count = min(max_workers, math.ceil(transaction_count / target_chunk_size))
+    chunk_size = math.ceil(transaction_count / worker_count)
+
+    # Keep chunk size aligned with Gemini batch size to avoid wasting requests on tiny partial batches.
+    rounded_chunk_size = math.ceil(chunk_size / max_batch_size) * max_batch_size
+    chunk_size = min(transaction_count, max(max_batch_size, rounded_chunk_size))
+
+    return worker_count, chunk_size
+
+
+def enqueue_user_enrichment_jobs(user_id: str, transaction_ids: list[str], queue=None) -> dict[str, Any]:
+    if not transaction_ids:
+        return {
+            "status": "nothing_to_enqueue",
+            "job_ids": [],
+            "worker_count": 0,
+            "transaction_count": 0,
+            "chunk_sizes": [],
+            "chunk_size": 0,
+        }
+
+    queue = queue or get_queue("enrich")
+    worker_count, chunk_size = _compute_enrichment_chunk_plan(len(transaction_ids))
+
+    job_ids: list[str] = []
+    chunk_sizes: list[int] = []
+    for index in range(0, len(transaction_ids), chunk_size):
+        chunk = transaction_ids[index:index + chunk_size]
+        if not chunk:
+            continue
+        job = queue.enqueue(
+            enrich_user_transactions_chunk,
+            str(user_id),
+            chunk,
+        )
+        job_ids.append(job.id)
+        chunk_sizes.append(len(chunk))
+
+    return {
+        "status": "queued",
+        "job_ids": job_ids,
+        "worker_count": len(job_ids) if job_ids else worker_count,
+        "transaction_count": len(transaction_ids),
+        "chunk_sizes": chunk_sizes,
+        "chunk_size": chunk_size,
+    }
 
 
 def enrich_user_transactions(user_id: str, max_transactions: int = 100) -> dict[str, Any]:
