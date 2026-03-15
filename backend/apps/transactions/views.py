@@ -80,9 +80,23 @@ def transaction_category_patch(request, transaction_id):
     tx = get_object_or_404(Transaction, id=transaction_id, user=request.user)
     s = TransactionCategoryPatchSerializer(data=request.data)
     s.is_valid(raise_exception=True)
+
     tx.category = s.validated_data["category"]
-    tx.enrichment_rule = None
-    tx.save(update_fields=["category", "enrichment_rule", "updated_at"])
+    tx.save(update_fields=["category", "updated_at"])
+
+    rule, _ = EnrichmentRule.objects.update_or_create(
+        user=request.user,
+        label_fingerprint=build_label_fingerprint(tx.raw_label),
+        defaults={
+            "merchant_name": tx.merchant_name,
+            "cleaned_label": tx.cleaned_label or tx.raw_label,
+            "category": tx.category,
+            "learned_from_transaction": tx,
+        },
+    )
+    tx.enrichment_rule = rule
+    tx.save(update_fields=["enrichment_rule", "updated_at"])
+
     return Response(TransactionSerializer(tx).data)
 
 
@@ -98,9 +112,9 @@ def transaction_correction_patch(request, transaction_id):
         user=request.user,
         label_fingerprint=build_label_fingerprint(tx.raw_label),
         defaults={
-            "merchant_name": tx.display_merchant,
-            "cleaned_label": tx.display_label or tx.raw_label,
-            "category": tx.display_category,
+            "merchant_name": tx.merchant_name,
+            "cleaned_label": tx.cleaned_label or tx.raw_label,
+            "category": tx.category,
             "learned_from_transaction": tx,
         },
     )
