@@ -4,6 +4,21 @@ Comment créer et appliquer des migrations SQLModel/Alembic dans Budget Bo.
 
 ---
 
+## 📌 Migration: suppression du legacy FastAPI (2026-03)
+
+La migration vers Django étant finalisée, les modules FastAPI historiques suivants ont été supprimés :
+
+- `backend/services/recurring.py`
+- `backend/domain/recurrence.py`
+- `backend/services/enrichment_memory.py`
+
+Impacts :
+- Les imports runtime vers ces modules ne sont plus valides.
+- La détection de récurrence et l'enrichissement sont désormais gérés via les apps/services Django actifs (`backend/apps/*` et `backend/services/*` restants).
+- Le plan de migration applicatif reste disponible via `backend/apps/jobs/management/commands/migrate_from_fastapi.py`.
+
+---
+
 ## 🚀 Démarrage Rapide
 
 ### 1. Créer une migration (après modification des modèles)

@@ -496,25 +496,14 @@ docker compose exec ollama ollama pull llama3:8b  # Alternative
 ```
 budget-bo/
 ├── 📁 backend/                 # Application FastAPI
-│   ├── 📁 app/
-│   │   ├── 📁 api/            # Endpoints REST
-│   │   │   ├── auth.py       # OAuth & sessions
-│   │   │   ├── credentials.py # Gestion banques
-│   │   │   ├── health.py     # Health checks
-│   │   │   ├── recurring.py  # Dépenses récurrentes
-│   │   │   └── transactions.py # CRUD transactions
-│   │   ├── 📁 core/          # Configuration
-│   │   │   ├── config.py     # Settings Pydantic
-│   │   │   ├── database.py   # SQLModel setup
-│   │   │   └── security.py   # Chiffrement AES-256
-│   │   ├── 📁 domain/        # Logique métier
-│   │   │   └── recurrence.py # Détection patterns
-│   │   ├── 📁 models/        # SQLModel models
-│   │   │   └── models.py     # User, Transaction, etc.
-│   │   ├── 📁 services/      # Services métier
-│   │   │   ├── ollama.py     # Client IA local
-│   │   │   └── recurring.py  # Service récurrentes
-│   │   └── main.py           # Point d'entrée FastAPI
+│   ├── 📁 apps/             # Applications Django (API REST)
+│   │   ├── 📁 transactions/  # Transactions + enrichissement
+│   │   ├── 📁 recurring/     # Dépenses récurrentes
+│   │   ├── 📁 accounts/      # Authentification utilisateur
+│   │   └── 📁 jobs/          # Jobs de migration/synchronisation
+│   ├── 📁 services/         # Services IA actifs (Gemini/Ollama)
+│   ├── 📁 config/           # Settings + URLs Django
+│   └── manage.py            # Point d'entrée Django
 │   ├── 📁 worker/            # Celery workers
 │   │   ├── celery_app.py     # Configuration Celery
 │   │   └── 📁 tasks/
