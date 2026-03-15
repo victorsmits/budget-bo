@@ -1,7 +1,10 @@
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
+from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
+from apps.jobs.enrich import enrich_single_transaction
 
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
@@ -72,6 +75,14 @@ def transaction_correction_patch(request, transaction_id):
         },
     )
     return Response(TransactionSerializer(tx).data)
+
+
+@api_view(["POST"])
+def transaction_enrich(request, transaction_id):
+    tx = get_object_or_404(Transaction, id=transaction_id, user=request.user)
+    queue = get_queue("enrich")
+    job = queue.enqueue(enrich_single_transaction, str(tx.id))
+    return Response({"job_id": job.id, "status": "queued", "transaction_id": str(tx.id)})
 
 
 @api_view(["PATCH"])
