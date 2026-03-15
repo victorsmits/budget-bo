@@ -60,7 +60,6 @@ def _apply_rule(transaction: Transaction, rule: EnrichmentRule) -> None:
     transaction.cleaned_label = rule.cleaned_label
     transaction.merchant_name = rule.merchant_name
     transaction.category = rule.category
-    transaction.is_expense = transaction.amount < 0
     transaction.ai_confidence = 1.0
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = "Learned from previous user correction"
@@ -113,6 +112,28 @@ def _persist_transaction(transaction: Transaction) -> None:
         ]
     )
 
+def _serialize_ai_result(result: Any) -> dict[str, Any]:
+    return {
+        "cleaned_label": result.cleaned_label,
+        "merchant_name": result.merchant_name,
+        "category": result.category,
+        "is_expense": result.is_expense,
+        "confidence": result.confidence,
+        "reasoning": result.reasoning,
+    }
+
+
+def _serialize_transaction_state(transaction: Transaction) -> dict[str, Any]:
+    return {
+        "transaction_id": str(transaction.id),
+        "cleaned_label": transaction.cleaned_label,
+        "merchant_name": transaction.merchant_name,
+        "category": transaction.category,
+        "is_expense": transaction.is_expense,
+        "ai_confidence": transaction.ai_confidence,
+        "ai_category_reasoning": getattr(transaction, "ai_category_reasoning", ""),
+    }
+
 def _apply_gemini_result(transaction: Transaction, result: Any) -> None:
     transaction.cleaned_label = result.cleaned_label or ""
     merchant = normalize_consumer_merchant(
@@ -123,14 +144,18 @@ def _apply_gemini_result(transaction: Transaction, result: Any) -> None:
     transaction.merchant_name = merchant
 
     category = result.category
-    if category == TransactionCategory.INCOME and not has_explicit_income_signal(
+    has_income_signal = has_explicit_income_signal(
         transaction.raw_label,
         merchant,
-    ):
+    )
+    if category == TransactionCategory.INCOME and not has_income_signal:
         category = TransactionCategory.OTHER
 
     transaction.category = category
-    transaction.is_expense = transaction.amount < 0
+    # Guardrail: preserve original debit/credit direction unless we have an explicit income signal.
+    # Gemini can over-predict income; transaction direction from bank sync is more reliable.
+    if category == TransactionCategory.INCOME and has_income_signal:
+        transaction.is_expense = False
     transaction.ai_confidence = result.confidence
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = result.reasoning
@@ -154,13 +179,18 @@ def enrich_single_transaction(transaction_id: str) -> dict:
                 "updated_at",
             ]
         )
-        return {"transaction_id": str(transaction_id), "status": "enriched_from_cache"}
+        return {
+            "transaction_id": str(transaction_id),
+            "status": "enriched_from_cache",
+            "transaction": _serialize_transaction_state(transaction),
+        }
 
     service = GeminiEnrichmentService()
+    signed_amount = -float(transaction.amount) if transaction.is_expense else float(transaction.amount)
     tx_input = TransactionInput(
         id=str(transaction.id),
         raw_label=transaction.raw_label,
-        amount=float(transaction.amount),
+        amount=signed_amount,
         date=transaction.date.isoformat(),
     )
 
@@ -187,11 +217,16 @@ def enrich_single_transaction(transaction_id: str) -> dict:
     )
     _upsert_rule_from_transaction(transaction)
 
-    return {"transaction_id": str(transaction_id), "status": "enriched_from_gemini"}
+    return {
+        "transaction_id": str(transaction_id),
+        "status": "enriched_from_gemini",
+        "ai_result": _serialize_ai_result(result),
+        "transaction": _serialize_transaction_state(transaction),
+    }
 
 
-def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[str, int]:
-    stats = {
+def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[str, Any]:
+    stats: dict[str, Any] = {
         "enriched_from_cache": 0,
         "enriched_from_gemini": 0,
         "errors": 0,
@@ -199,6 +234,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
     }
 
     to_enrich: list[Transaction] = []
+    ai_results: list[dict[str, Any]] = []
     for tx in transactions:
         rule = _get_matching_rule(tx)
         if rule is None:
@@ -218,7 +254,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
             TransactionInput(
                 id=str(tx.id),
                 raw_label=tx.raw_label,
-                amount=float(tx.amount),
+                amount=-float(tx.amount) if tx.is_expense else float(tx.amount),
                 date=tx.date.isoformat(),
             )
             for tx in batch
@@ -244,16 +280,24 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
 
             _apply_gemini_result(tx, result)
             _persist_transaction(tx)
+            ai_results.append(
+                {
+                    "transaction_id": str(tx.id),
+                    "ai_result": _serialize_ai_result(result),
+                    "transaction": _serialize_transaction_state(tx),
+                }
+            )
             try:
                 _upsert_rule_from_transaction(tx)
             except Exception:
                 logger.exception("Failed to upsert enrichment rule", extra={"transaction_id": str(tx.id), "user_id": str(user_id)})
             stats["enriched_from_gemini"] += 1
+
+    stats["ai_results"] = ai_results
     return stats
 
 
-def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions: int = 100) -> dict[str, int]:
-    del days_back
+def enrich_user_transactions(user_id: str, max_transactions: int = 100) -> dict[str, Any]:
     queryset = (
         Transaction.objects.select_related("user")
         .filter(user_id=user_id, enriched_at__isnull=True)
@@ -262,7 +306,7 @@ def enrich_user_transactions(user_id: str, days_back: int = 7, max_transactions:
     return _enrich_transactions(list(queryset), user_id)
 
 
-def enrich_user_transactions_chunk(user_id: str, transaction_ids: list[str]) -> dict[str, int | str]:
+def enrich_user_transactions_chunk(user_id: str, transaction_ids: list[str]) -> dict[str, Any]:
     queryset = (
         Transaction.objects.select_related("user")
         .filter(user_id=user_id, enriched_at__isnull=True, id__in=transaction_ids)
