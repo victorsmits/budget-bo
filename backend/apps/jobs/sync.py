@@ -9,6 +9,7 @@ from django.utils import timezone
 from django_rq import get_queue
 
 from apps.bank_credentials.models import BankAccount, BankCredential
+from apps.jobs.enrich import enrich_user_transactions
 from apps.transactions.models import Transaction
 from services.security import EncryptionService
 
@@ -247,10 +248,14 @@ def sync_credential_transactions(credential_id, days_back=7):
                 )
 
                 upserted_accounts = _upsert_accounts(credential, provider_accounts)
-                inserted_count, inserted_ids = _insert_new_transactions(
+                inserted_count, _ = _insert_new_transactions(
                     credential,
                     provider_transactions,
                 )
+                pending_enrichment_count = Transaction.objects.filter(
+                    user=credential.user,
+                    enriched_at__isnull=True,
+                ).count()
 
                 credential.sync_status = "success"
                 credential.sync_error_message = ""
@@ -264,15 +269,23 @@ def sync_credential_transactions(credential_id, days_back=7):
                     ]
                 )
 
-            # for tx_id in inserted_ids:
-                # queue.enqueue("apps.jobs.enrich.enrich_single_transaction", tx_id)
+            enrichment_job = None
+            if pending_enrichment_count > 0:
+                enrichment_job = queue.enqueue(
+                    enrich_user_transactions,
+                    str(credential.user.id),
+                    days_back,
+                    pending_enrichment_count,
+                )
 
             return {
                 "credential_id": str(credential_id),
                 "status": "success",
                 "inserted_transactions": inserted_count,
                 "upserted_accounts": upserted_accounts,
-                "enqueued_enrichment_jobs": len(inserted_ids),
+                "enqueued_enrichment_jobs": 1 if enrichment_job else 0,
+                "pending_enrichment_transactions": pending_enrichment_count,
+                "enrichment_job_id": enrichment_job.id if enrichment_job else None,
             }
 
         except RETRYABLE_EXCEPTIONS as exc:
