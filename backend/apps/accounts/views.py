@@ -16,7 +16,10 @@ from .serializers import UserMeSerializer
 def auth_login(request):
     if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
         return Response({"detail": "Google OAuth is not configured"}, status=503)
-    return redirect("/auth/social/google/login/")
+    
+    # En prod, on ajoute /api, en dev on ne l'ajoute pas
+    base_url = "/api" if not settings.DEBUG else ""
+    return redirect(f"{base_url}/auth/social/google/login/")
 
 
 @api_view(["GET"])
