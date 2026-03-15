@@ -1,3 +1,5 @@
+import re
+
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django_rq import get_queue
@@ -10,11 +12,24 @@ from apps.jobs.enrich import (
     enrich_user_transactions_chunk,
 )
 
-from services.enrichment_memory import build_label_fingerprint
-
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
 from .serializers import RecurringFlagSerializer, TransactionBulkEnrichSerializer, TransactionCategoryPatchSerializer, TransactionCorrectionSerializer, TransactionSerializer
+
+
+NOISE_TOKENS = {
+    "carte", "cb", "prlv", "prlvm", "prelevement", "prelev", "sepa",
+    "vir", "virement", "paiement", "achat",
+}
+
+
+def build_label_fingerprint(raw_label: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", raw_label.lower())
+    cleaned = re.sub(r"\b\d+[a-z]*\b", " ", cleaned)
+    tokens = [token for token in cleaned.split() if token not in NOISE_TOKENS and len(token) > 2]
+    if not tokens:
+        return "unknown"
+    return " ".join(tokens[:8])
 
 
 @api_view(["GET"])

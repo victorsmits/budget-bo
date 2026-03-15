@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 from django.conf import settings
@@ -9,7 +10,6 @@ from services.enrichment_intelligence import (
     has_explicit_income_signal,
     normalize_consumer_merchant,
 )
-from services.enrichment_memory import build_label_fingerprint
 from services.gemini_enrichment import (
     GeminiDailyLimitError,
     GeminiEnrichmentService,
@@ -19,8 +19,28 @@ from services.gemini_enrichment import (
 logger = logging.getLogger(__name__)
 
 
+NOISE_TOKENS = {
+    "carte",
+    "cb",
+    "prlv",
+    "prlvm",
+    "prelevement",
+    "prelev",
+    "sepa",
+    "vir",
+    "virement",
+    "paiement",
+    "achat",
+}
+
+
 def _label_fingerprint(raw_label: str) -> str:
-    return build_label_fingerprint(raw_label)
+    cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", raw_label.lower())
+    cleaned = re.sub(r"\b\d+[a-z]*\b", " ", cleaned)
+    tokens = [token for token in cleaned.split() if token not in NOISE_TOKENS and len(token) > 2]
+    if not tokens:
+        return "unknown"
+    return " ".join(tokens[:8])
 
 
 def _get_matching_rule(transaction: Transaction) -> EnrichmentRule | None:
