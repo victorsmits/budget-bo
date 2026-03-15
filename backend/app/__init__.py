@@ -1,1 +1,0 @@
-"""Budget Bo Backend Application."""
