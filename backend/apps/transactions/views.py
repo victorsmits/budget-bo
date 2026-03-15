@@ -1,6 +1,7 @@
 import re
 
-from django.db.models import Sum
+from django.db.models import Q, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django_rq import get_queue
 from rest_framework.decorators import api_view
@@ -34,9 +35,9 @@ def build_label_fingerprint(raw_label: str) -> str:
 
 @api_view(["GET"])
 def transaction_list(request):
-    qs = Transaction.objects.filter(user=request.user).order_by("-date", "-created_at")
+    qs = Transaction.objects.filter(user=request.user).select_related("enrichment_rule").order_by("-date", "-created_at")
     if cat := request.query_params.get("category"):
-        qs = qs.filter(category=cat)
+        qs = qs.filter(Q(enrichment_rule__category=cat) | Q(enrichment_rule__isnull=True, category=cat))
     if is_expense := request.query_params.get("is_expense"):
         qs = qs.filter(is_expense=is_expense.lower() == "true")
     if date_from := request.query_params.get("date_from"):
@@ -54,7 +55,14 @@ def transaction_summary(request):
     qs = Transaction.objects.filter(user=request.user)
     expenses = qs.filter(is_expense=True).aggregate(total=Sum("amount"))["total"] or 0
     income = qs.filter(is_expense=False).aggregate(total=Sum("amount"))["total"] or 0
-    by_category = list(qs.values("category").annotate(total=Sum("amount")).order_by("category"))
+    by_category = list(
+        qs.annotate(effective_category=Coalesce("enrichment_rule__category", "category", Value("other")))
+        .values("effective_category")
+        .annotate(total=Sum("amount"))
+        .order_by("effective_category")
+    )
+    for item in by_category:
+        item["category"] = item.pop("effective_category")
     return Response({"total_expenses": expenses, "total_income": income, "by_category": by_category})
 
 
@@ -73,7 +81,8 @@ def transaction_category_patch(request, transaction_id):
     s = TransactionCategoryPatchSerializer(data=request.data)
     s.is_valid(raise_exception=True)
     tx.category = s.validated_data["category"]
-    tx.save(update_fields=["category", "updated_at"])
+    tx.enrichment_rule = None
+    tx.save(update_fields=["category", "enrichment_rule", "updated_at"])
     return Response(TransactionSerializer(tx).data)
 
 
@@ -85,16 +94,18 @@ def transaction_correction_patch(request, transaction_id):
     for field, value in s.validated_data.items():
         setattr(tx, field, value)
     tx.save()
-    EnrichmentRule.objects.update_or_create(
+    rule, _ = EnrichmentRule.objects.update_or_create(
         user=request.user,
         label_fingerprint=build_label_fingerprint(tx.raw_label),
         defaults={
-            "merchant_name": tx.merchant_name,
-            "cleaned_label": tx.cleaned_label or tx.raw_label,
-            "category": tx.category,
+            "merchant_name": tx.display_merchant,
+            "cleaned_label": tx.display_label or tx.raw_label,
+            "category": tx.display_category,
             "learned_from_transaction": tx,
         },
     )
+    tx.enrichment_rule = rule
+    tx.save(update_fields=["enrichment_rule", "updated_at"])
     return Response(TransactionSerializer(tx).data)
 
 

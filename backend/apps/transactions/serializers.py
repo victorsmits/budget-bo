@@ -3,9 +3,32 @@ from .models import EnrichmentRule, Transaction
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    cleaned_label = serializers.CharField(source="display_label", read_only=True)
+    category = serializers.CharField(source="display_category", read_only=True)
+    merchant_name = serializers.CharField(source="display_merchant", read_only=True, allow_null=True)
+
     class Meta:
         model = Transaction
-        fields = "__all__"
+        fields = [
+            "id",
+            "user",
+            "credential",
+            "recurring_expense",
+            "date",
+            "amount",
+            "raw_label",
+            "cleaned_label",
+            "category",
+            "is_expense",
+            "is_recurring",
+            "merchant_name",
+            "currency",
+            "transaction_key",
+            "ai_confidence",
+            "enriched_at",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "user", "created_at", "updated_at", "enriched_at"]
 
 

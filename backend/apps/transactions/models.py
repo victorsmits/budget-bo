@@ -31,17 +31,43 @@ class Transaction(models.Model):
     date = models.DateField()
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     raw_label = models.TextField()
+    # Deprecated fallback fields kept for backward compatibility when no enrichment rule is linked.
     cleaned_label = models.CharField(max_length=255, null=True, blank=True)
     category = models.CharField(max_length=64, choices=TransactionCategory.choices, default=TransactionCategory.OTHER)
     is_expense = models.BooleanField(default=True)
     is_recurring = models.BooleanField(default=False)
     merchant_name = models.CharField(max_length=255, null=True, blank=True)
+    enrichment_rule = models.ForeignKey(
+        "EnrichmentRule",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transactions",
+    )
     currency = models.CharField(max_length=8, default="EUR")
     transaction_key = models.CharField(max_length=255, db_index=True)
     ai_confidence = models.FloatField(null=True, blank=True)
     enriched_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def display_label(self) -> str:
+        if self.enrichment_rule and self.enrichment_rule.cleaned_label:
+            return self.enrichment_rule.cleaned_label
+        return self.cleaned_label or self.raw_label
+
+    @property
+    def display_category(self) -> str:
+        if self.enrichment_rule:
+            return self.enrichment_rule.category
+        return self.category
+
+    @property
+    def display_merchant(self) -> str | None:
+        if self.enrichment_rule:
+            return self.enrichment_rule.merchant_name
+        return self.merchant_name
 
 
 class EnrichmentRule(models.Model):
