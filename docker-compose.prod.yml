@@ -5,7 +5,6 @@ x-rq-worker-env: &rq_worker_env
   REDIS_URL: redis://budget-bo-redis-prod:6379/0
   SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
   GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
   GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
@@ -72,7 +71,6 @@ services:
       REDIS_URL: redis://budget-bo-redis-prod:6379/0
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}

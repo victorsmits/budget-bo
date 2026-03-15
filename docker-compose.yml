@@ -42,7 +42,6 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - GEMINI_MAX_BATCH_SIZE=${GEMINI_MAX_BATCH_SIZE:-50}
@@ -68,7 +67,6 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - GEMINI_MAX_BATCH_SIZE=${GEMINI_MAX_BATCH_SIZE:-50}
@@ -86,7 +84,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  ollama_data:
 
 networks:
   budget-bo-network:

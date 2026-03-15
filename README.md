@@ -2,7 +2,7 @@
 
 Application de suivi des dépenses bancaires avec :
 - synchronisation de comptes (Woob / Crédit Agricole),
-- enrichissement IA (Gemini + fallback heuristique / Ollama selon les services),
+- enrichissement IA (Gemini + fallback heuristique),
 - détection des dépenses récurrentes,
 - interface Next.js moderne.
 
@@ -65,7 +65,6 @@ Backend:
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 - `FRONTEND_URL`
 - `GEMINI_API_KEY` (+ `GEMINI_MODEL`, limites)
-- `OLLAMA_BASE_URL` (si utilisé)
 
 Frontend:
 - `NEXT_PUBLIC_API_URL` (par défaut `/api` via middleware/proxy)

@@ -15,7 +15,6 @@ Le système combine:
 2. **Gemini** (batch enrich + recherche web native),
 3. **Fallback robuste** en cas d'échec partiel.
 
-Selon la configuration, certains flux internes peuvent aussi exploiter **Ollama**.
 
 ## Variables d'environnement
 
@@ -25,9 +24,6 @@ GEMINI_MODEL=gemini-2.0-flash
 GEMINI_MAX_BATCH_SIZE=50
 GEMINI_DAILY_LIMIT=18
 GEMINI_MIN_DELAY_SECONDS=12
-
-# optionnel selon les services utilisés
-OLLAMA_BASE_URL=http://ollama:11434
 ```
 
 ## Déclenchement
