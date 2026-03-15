@@ -53,6 +53,11 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
+      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
+      GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,6 +85,11 @@ services:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
+      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
+      GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,6 +116,11 @@ services:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:8000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
+      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
+      GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
     depends_on:
       redis:
         condition: service_healthy
