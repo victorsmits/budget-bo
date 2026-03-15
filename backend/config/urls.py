@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.urls import include, path
 from django.http import JsonResponse
 from django.db import connection
+from django.conf import settings
+from django.conf.urls.static import static
 import redis
 import os
 
@@ -44,3 +46,7 @@ urlpatterns = [
     path("live", live),
     path("ready", ready),
 ]
+
+# Serve static files in production
+if settings.DEBUG or getattr(settings, 'STATICFILES_STORAGE', None) == 'django.contrib.staticfiles.storage.StaticFilesStorage':
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
