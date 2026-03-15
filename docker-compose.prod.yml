@@ -1,3 +1,32 @@
+x-rq-worker-env: &rq_worker_env
+  ENVIRONMENT: production
+  DJANGO_SETTINGS_MODULE: config.settings.production
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
+  REDIS_URL: redis://budget-bo-redis-prod:6379/0
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+  GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
+  GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
+  GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
+
+x-rq-worker-base: &rq_worker_base
+  image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  command: python manage.py rqworker sync enrich default
+  environment: *rq_worker_env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    backend:
+      condition: service_started
+  networks:
+    - budget-bo-network
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -71,33 +100,17 @@ services:
     networks:
       - budget-bo-network
 
-  rq-worker:
-    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-rq-worker-prod
-    restart: unless-stopped
-    command: python manage.py rqworker sync enrich default
-    environment:
-      ENVIRONMENT: production
-      DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
-      REDIS_URL: redis://budget-bo-redis-prod:6379/0
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?OLLAMA_BASE_URL is required}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
-      GEMINI_MAX_BATCH_SIZE: ${GEMINI_MAX_BATCH_SIZE:-50}
-      GEMINI_DAILY_LIMIT: ${GEMINI_DAILY_LIMIT:-18}
-      GEMINI_MIN_DELAY_SECONDS: ${GEMINI_MIN_DELAY_SECONDS:-12}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_started
-    networks:
-      - budget-bo-network
+  rq-worker-1:
+    <<: *rq_worker_base
+    container_name: budget-bo-rq-worker-prod-1
+
+  rq-worker-2:
+    <<: *rq_worker_base
+    container_name: budget-bo-rq-worker-prod-2
+
+  rq-worker-3:
+    <<: *rq_worker_base
+    container_name: budget-bo-rq-worker-prod-3
 
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
