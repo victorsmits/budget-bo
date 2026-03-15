@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY ./scripts/setup_woob.py /app/scripts/setup_woob.py
+RUN python /app/scripts/setup_woob.py
+
 COPY . .
 
 EXPOSE 8000

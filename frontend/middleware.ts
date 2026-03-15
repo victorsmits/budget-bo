@@ -13,8 +13,8 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for session cookie
-  const session = request.cookies.get("session")
-
+  const session = request.cookies.get("sessionid")
+debugger
   if (!session) {
     // Redirect to login if no session
     const loginUrl = new URL("/login", request.url)

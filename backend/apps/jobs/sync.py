@@ -264,8 +264,8 @@ def sync_credential_transactions(credential_id, days_back=7):
                     ]
                 )
 
-            for tx_id in inserted_ids:
-                queue.enqueue("apps.jobs.enrich.enrich_single_transaction", tx_id)
+            # for tx_id in inserted_ids:
+                # queue.enqueue("apps.jobs.enrich.enrich_single_transaction", tx_id)
 
             return {
                 "credential_id": str(credential_id),
