@@ -60,7 +60,6 @@ def _apply_rule(transaction: Transaction, rule: EnrichmentRule) -> None:
     transaction.cleaned_label = rule.cleaned_label
     transaction.merchant_name = rule.merchant_name
     transaction.category = rule.category
-    transaction.is_expense = transaction.amount < 0
     transaction.ai_confidence = 1.0
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = "Learned from previous user correction"
@@ -130,7 +129,7 @@ def _apply_gemini_result(transaction: Transaction, result: Any) -> None:
         category = TransactionCategory.OTHER
 
     transaction.category = category
-    transaction.is_expense = transaction.amount < 0
+    transaction.is_expense = result.is_expense
     transaction.ai_confidence = result.confidence
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = result.reasoning
@@ -157,10 +156,11 @@ def enrich_single_transaction(transaction_id: str) -> dict:
         return {"transaction_id": str(transaction_id), "status": "enriched_from_cache"}
 
     service = GeminiEnrichmentService()
+    signed_amount = -float(transaction.amount) if transaction.is_expense else float(transaction.amount)
     tx_input = TransactionInput(
         id=str(transaction.id),
         raw_label=transaction.raw_label,
-        amount=float(transaction.amount),
+        amount=signed_amount,
         date=transaction.date.isoformat(),
     )
 
@@ -218,7 +218,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
             TransactionInput(
                 id=str(tx.id),
                 raw_label=tx.raw_label,
-                amount=float(tx.amount),
+                amount=-float(tx.amount) if tx.is_expense else float(tx.amount),
                 date=tx.date.isoformat(),
             )
             for tx in batch
