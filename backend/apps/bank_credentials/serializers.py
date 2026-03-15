@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from services.security import EncryptionService
-from .models import BankCredential
+from .models import BankAccount, BankCredential
 
 
 class BankCredentialSerializer(serializers.ModelSerializer):
@@ -23,3 +23,15 @@ class BankCredentialSerializer(serializers.ModelSerializer):
         validated_data["encrypted_password"] = service.encrypt(password_raw)
         validated_data["user"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class BankAccountSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source="user.id", read_only=True)
+    credential_id = serializers.UUIDField(source="credential.id", read_only=True)
+
+    class Meta:
+        model = BankAccount
+        fields = [
+            "id", "user_id", "credential_id", "account_id", "account_label",
+            "account_type", "balance", "currency", "created_at", "updated_at"
+        ]

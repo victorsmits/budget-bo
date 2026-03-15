@@ -1,11 +1,12 @@
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from apps.jobs.sync import sync_credential_transactions
-from .models import BankCredential
-from .serializers import BankCredentialSerializer
+from .models import BankAccount, BankCredential
+from .serializers import BankAccountSerializer, BankCredentialSerializer
 
 
 @api_view(["GET", "POST"])
@@ -35,3 +36,22 @@ def credential_sync(request, credential_id):
     queue = get_queue("sync")
     job = queue.enqueue(sync_credential_transactions, str(credential.id))
     return Response({"job_id": job.id, "status": "queued"})
+
+
+@api_view(["GET"])
+def account_list(request):
+    qs = BankAccount.objects.filter(user=request.user).order_by("account_label")
+    return Response(BankAccountSerializer(qs, many=True).data)
+
+
+@api_view(["GET"])
+def account_summary(request):
+    qs = BankAccount.objects.filter(user=request.user)
+    total_balance = qs.aggregate(total=Sum("balance"))["total"] or 0
+    return Response({"total_accounts": qs.count(), "total_balance": total_balance, "currency": "EUR"})
+
+
+@api_view(["GET"])
+def account_detail(request, account_id):
+    account = get_object_or_404(BankAccount, id=account_id, user=request.user)
+    return Response(BankAccountSerializer(account).data)

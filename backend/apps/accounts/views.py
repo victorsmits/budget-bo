@@ -15,7 +15,7 @@ from .serializers import UserMeSerializer
 def auth_login(request):
     if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
         return Response({"detail": "Google OAuth is not configured"}, status=503)
-    return redirect("/accounts/google/login/")
+    return redirect("/auth/social/google/login/")
 
 
 @api_view(["GET"])
@@ -45,3 +45,9 @@ def auth_test_login(request):
     user, _ = User.objects.get_or_create(email=email, defaults={"oauth_id": f"test-{email}"})
     login(request, user)
     return Response(UserMeSerializer(user).data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def users_me(request):
+    return Response(UserMeSerializer(request.user).data)
