@@ -144,14 +144,18 @@ def _apply_gemini_result(transaction: Transaction, result: Any) -> None:
     transaction.merchant_name = merchant
 
     category = result.category
-    if category == TransactionCategory.INCOME and not has_explicit_income_signal(
+    has_income_signal = has_explicit_income_signal(
         transaction.raw_label,
         merchant,
-    ):
+    )
+    if category == TransactionCategory.INCOME and not has_income_signal:
         category = TransactionCategory.OTHER
 
     transaction.category = category
-    transaction.is_expense = result.is_expense
+    # Guardrail: preserve original debit/credit direction unless we have an explicit income signal.
+    # Gemini can over-predict income; transaction direction from bank sync is more reliable.
+    if category == TransactionCategory.INCOME and has_income_signal:
+        transaction.is_expense = False
     transaction.ai_confidence = result.confidence
     if hasattr(transaction, "ai_category_reasoning"):
         transaction.ai_category_reasoning = result.reasoning
