@@ -9,6 +9,7 @@ from services.enrichment_intelligence import (
     has_explicit_income_signal,
     normalize_consumer_merchant,
 )
+from services.enrichment_memory import build_label_fingerprint
 from services.gemini_enrichment import (
     GeminiDailyLimitError,
     GeminiEnrichmentService,
@@ -19,14 +20,16 @@ logger = logging.getLogger(__name__)
 
 
 def _label_fingerprint(raw_label: str) -> str:
-    return " ".join(raw_label.lower().split())[:255]
+    return build_label_fingerprint(raw_label)
 
 
 def _get_matching_rule(transaction: Transaction) -> EnrichmentRule | None:
+    fingerprint = _label_fingerprint(transaction.raw_label)
+    legacy_fingerprint = transaction.raw_label.lower().strip()
     return (
         EnrichmentRule.objects.filter(
             user=transaction.user,
-            label_fingerprint=_label_fingerprint(transaction.raw_label),
+            label_fingerprint__in=[fingerprint, legacy_fingerprint],
         )
         .order_by("-updated_at")
         .first()

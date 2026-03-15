@@ -10,6 +10,8 @@ from apps.jobs.enrich import (
     enrich_user_transactions_chunk,
 )
 
+from services.enrichment_memory import build_label_fingerprint
+
 from .models import EnrichmentRule, Transaction
 from .pagination import UniformPagination
 from .serializers import RecurringFlagSerializer, TransactionBulkEnrichSerializer, TransactionCategoryPatchSerializer, TransactionCorrectionSerializer, TransactionSerializer
@@ -70,7 +72,7 @@ def transaction_correction_patch(request, transaction_id):
     tx.save()
     EnrichmentRule.objects.update_or_create(
         user=request.user,
-        label_fingerprint=tx.raw_label.lower().strip(),
+        label_fingerprint=build_label_fingerprint(tx.raw_label),
         defaults={
             "merchant_name": tx.merchant_name,
             "cleaned_label": tx.cleaned_label or tx.raw_label,
