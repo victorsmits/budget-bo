@@ -53,6 +53,11 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GEMINI_MAX_BATCH_SIZE=${GEMINI_MAX_BATCH_SIZE:-50}
+      - GEMINI_DAILY_LIMIT=${GEMINI_DAILY_LIMIT:-18}
+      - GEMINI_MIN_DELAY_SECONDS=${GEMINI_MIN_DELAY_SECONDS:-12}
     ports: ["8000:8000"]
     volumes:
       - ./backend:/app
@@ -74,6 +79,11 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GEMINI_MAX_BATCH_SIZE=${GEMINI_MAX_BATCH_SIZE:-50}
+      - GEMINI_DAILY_LIMIT=${GEMINI_DAILY_LIMIT:-18}
+      - GEMINI_MIN_DELAY_SECONDS=${GEMINI_MIN_DELAY_SECONDS:-12}
     volumes:
       - ./backend:/app
     depends_on:
