@@ -1,5 +1,11 @@
-from worker.jobs.enrich_transactions import enrich_single_transaction as legacy_enrich
+from django.utils import timezone
+from apps.transactions.models import Transaction
 
 
 def enrich_single_transaction(transaction_id):
-    return legacy_enrich(transaction_id=transaction_id)
+    transaction = Transaction.objects.get(id=transaction_id)
+    if not transaction.cleaned_label:
+        transaction.cleaned_label = transaction.raw_label
+    transaction.enriched_at = timezone.now()
+    transaction.save(update_fields=["cleaned_label", "enriched_at", "updated_at"])
+    return {"transaction_id": str(transaction_id), "status": "enriched"}

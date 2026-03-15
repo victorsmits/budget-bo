@@ -5,14 +5,22 @@ from typing import Any
 
 import ollama
 
-from app.core.config import get_settings
-from app.services.ai_constants import VALID_CATEGORIES
-from app.services.ollama_prompts import (
+import os
+from services.ai_constants import VALID_CATEGORIES
+from services.ollama_prompts import (
     build_normalization_system_prompt,
     build_normalization_user_prompt,
 )
 
-settings = get_settings()
+
+
+class _Settings:
+    ollama_model = os.getenv("OLLAMA_MODEL", "mistral:7b")
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+
+
+settings = _Settings()
 
 # ---------------------------------------------------------------------------
 # Tool definition exposed to the LLM

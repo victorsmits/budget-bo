@@ -1,6 +1,6 @@
 """Prompt builders for transaction enrichment tasks."""
 
-from app.services.ai_constants import VALID_CATEGORIES
+from services.ai_constants import VALID_CATEGORIES
 
 
 def build_normalization_system_prompt() -> str:

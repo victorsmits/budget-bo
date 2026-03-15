@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from app.services.ai_constants import VALID_CATEGORIES
+from services.ai_constants import VALID_CATEGORIES
 
 LEGAL_SUFFIXES = {
     "sas",
