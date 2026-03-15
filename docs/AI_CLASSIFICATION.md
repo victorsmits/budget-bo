@@ -1,189 +1,78 @@
-# Classification par IA avec Ollama
+# Enrichissement IA des transactions
 
 ## Vue d'ensemble
 
-Budget Bo utilise Ollama avec le modèle Phi3 pour classifier automatiquement les transactions bancaires. Cette fonctionnalité permet de :
+Le pipeline d'enrichissement complète automatiquement chaque transaction avec :
+- `cleaned_label` (libellé lisible),
+- `merchant_name`,
+- `category`,
+- `is_expense`,
+- `confidence`,
+- `reasoning`.
 
-- **Normaliser les libellés** : `PRLVM SEPA NETFLIX.COM` → `Netflix`
-- **Éviter les faux nettoyages** : si aucun meilleur libellé n'est trouvé, `cleaned_label` reste vide (`""`) au lieu de recopier le libellé brut
-- **Extraire les marchands** : Identifier automatiquement le nom du commerçant
-- **Catégoriser** : Assigner une catégorie (food, transportation, entertainment, etc.)
-- **Calculer la confiance** : Score de 0.0 à 1.0 indiquant la fiabilité de la classification
-- **Apprendre des corrections utilisateur** : Les corrections sont mémorisées et réutilisées automatiquement
+Le système combine:
+1. **Règles déterministes** (mots-clés métiers, signaux explicites de revenu),
+2. **Gemini** (batch enrich + recherche web native),
+3. **Fallback robuste** en cas d'échec partiel.
 
-## Configuration
+Selon la configuration, certains flux internes peuvent aussi exploiter **Ollama**.
 
-### 1. Vérifier qu'Ollama fonctionne
-
-```bash
-docker compose exec ollama ollama list
-```
-
-Le modèle `phi3` doit être présent. Si non :
-
-```bash
-docker compose exec ollama ollama pull phi3
-```
-
-### 2. Variables d'environnement
-
-Dans `.env`, assurez-vous que ces variables sont configurées :
+## Variables d'environnement
 
 ```env
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MAX_BATCH_SIZE=50
+GEMINI_DAILY_LIMIT=18
+GEMINI_MIN_DELAY_SECONDS=12
+
+# optionnel selon les services utilisés
 OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODEL=phi3
-OLLAMA_TIMEOUT=120
 ```
 
-## Utilisation
+## Déclenchement
 
-### Enrichissement automatique
-
-Les nouvelles transactions sont automatiquement enrichies lors de la synchronisation bancaire.
-
-Le prompt IA force désormais la vérification via recherche web (`web_search`) dès que le marchand est ambigu ou peu connu, afin d'obtenir un nom d'enseigne plus fiable et une meilleure catégorie métier.
-
-Le worker limite aussi le nombre de tours d'outil et n'appelle la seconde étape de catégorisation IA que si nécessaire, pour réduire les timeouts (`/api/chat` 500) et garder un enrichissement robuste même si Ollama est lent.
-
-La catégorie `income` est désormais appliquée uniquement en présence d'indices explicites (salaire, paie, remboursement, allocation, etc.) et non pas simplement parce que le montant est positif.
-
-### Enrichissement manuel
-
-Pour déclencher manuellement l'enrichissement des transactions non traitées :
+### 1) Enrichir un lot de transactions utilisateur
 
 ```bash
-# Via l'API
-curl -X POST "http://localhost:8000/transactions/enrich?days_back=30" \
+curl -X POST http://localhost:8000/transactionsenrich \
+  -H "Content-Type: application/json" \
+  -d '{"max_transactions":100,"worker_count":4,"enrich_all":false}' \
   -b cookies.txt
-
-# Via le script (pour tests)
-docker compose exec backend python scripts/enrich_transactions.py
 ```
 
-
-### Correction utilisateur + apprentissage
-
-Si une classification est incorrecte, l'utilisateur peut corriger la transaction.
-Le backend crée/met à jour une règle d'enrichissement pour réutiliser ce choix
-la prochaine fois qu'un libellé similaire est rencontré.
+### 2) Enrichir une transaction unitaire
 
 ```bash
-curl -X PATCH "http://localhost:8000/transactions/<transaction_id>/correction" \
+curl -X POST http://localhost:8000/transactions/<transaction_id>/enrich \
+  -b cookies.txt
+```
+
+### 3) Corriger une transaction (apprentissage)
+
+```bash
+curl -X PATCH http://localhost:8000/transactions/<transaction_id>/correction \
   -H "Content-Type: application/json" \
   -d '{"cleaned_label":"Netflix","merchant_name":"Netflix","category":"subscriptions"}' \
   -b cookies.txt
 ```
 
-### Catégories disponibles
+## Points importants
 
-- `housing` - Logement
-- `transportation` - Transport
-- `food` - Alimentation (générique)
-- `groceries` - Courses / supermarché
-- `dining` - Restaurant / snack / livraison repas
-- `utilities` - Factures (électricité, eau, etc.)
-- `healthcare` - Santé
-- `entertainment` - Divertissement
-- `shopping` - Shopping (fallback)
-- `home_improvement` - Maison / bricolage / ameublement
-- `subscriptions` - Abonnements
-- `income` - Revenus
-- `insurance` - Assurance
-- `education` - Éducation
-- `travel` - Voyage
-- `other` - Autre
+- La catégorie `income` n'est retenue qu'avec **indices explicites** (salaire, allocation, remboursement, etc.).
+- Les corrections utilisateur créent/actualisent des règles persistées.
+- Les jobs sont exécutés sur la queue RQ `enrich`.
 
-## Monitoring
-
-### Vérifier l'état des transactions
-
-```python
-# Nombre de transactions enrichies/non enrichies
-docker compose exec backend python -c "
-import asyncio
-from app.core.database import AsyncSessionLocal
-from app.models.models import Transaction
-from sqlalchemy import select, func
-
-async def check():
-    async with AsyncSessionLocal() as session:
-        enriched = await session.scalar(select(func.count()).where(Transaction.enriched_at.isnot(None)))
-        not_enriched = await session.scalar(select(func.count()).where(Transaction.enriched_at.is_(None)))
-        print(f'Enrichies: {enriched}, Non enrichies: {not_enriched}')
-
-asyncio.run(check())
-"
-```
-
-### Logs du worker
+## Monitoring rapide
 
 ```bash
-docker compose logs worker -f
+# Workers / jobs RQ
+docker compose logs -f rq-worker
+
+# Dashboard RQ
+# http://localhost:8000/admin/rq/
 ```
 
-### Interface Flower (monitoring Celery)
+## Catégories gérées
 
-Accédez à http://localhost:5555 pour voir l'état des tâches d'enrichissement.
-
-## Personnalisation
-
-### Modifier le modèle IA
-
-Pour utiliser un autre modèle (ex: llama3):
-
-1. Téléchargez le modèle :
-   ```bash
-   docker compose exec ollama ollama pull llama3:8b
-   ```
-
-2. Modifiez `.env` :
-   ```env
-   OLLAMA_MODEL=llama3:8b
-   ```
-
-3. Redémarrez les services :
-   ```bash
-   docker compose restart backend worker
-   ```
-
-### Ajuster les prompts
-
-Le service Ollama utilise des prompts spécifiques dans `app/services/ollama.py`. Vous pouvez les modifier pour améliorer la classification selon vos besoins.
-
-## Dépannage
-
-### Problème : Les transactions ne sont pas enrichies
-
-1. Vérifiez qu'Ollama fonctionne :
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
-
-2. Vérifiez les logs du worker pour les erreurs
-
-3. Testez manuellement :
-   ```bash
-   docker compose exec backend python -c "
-   import asyncio
-   from app.services.ollama import get_ollama_service
-   
-   async def test():
-       ollama = get_ollama_service()
-       result = await ollama.normalize_label('PRLVM SEPA NETFLIX.COM')
-       print(result)
-   
-   asyncio.run(test())
-   "
-   ```
-
-### Problème : Mauvaises classifications
-
-Le modèle Phi3 peut parfois faire des erreurs. Pour améliorer :
-
-1. Augmentez la température dans `_generate()` pour plus de créativité
-2. Modifiez le prompt pour être plus spécifique
-3. Ajoutez des exemples dans le prompt (few-shot learning)
-
-### Problème : Trop de transactions en erreur
-
-Cela peut arriver si le modèle génère du JSON malformé. Le service inclut maintenant un parsing robuste avec regex pour extraire les données même si le JSON est imparfait.
+`housing`, `transportation`, `food`, `groceries`, `dining`, `utilities`, `healthcare`, `entertainment`, `shopping`, `home_improvement`, `subscriptions`, `income`, `insurance`, `education`, `travel`, `other`.
