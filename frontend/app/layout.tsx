@@ -1,24 +1,23 @@
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { Providers } from "./providers"
-import { Toaster } from "@/components/ui/toaster"
+import type { Metadata } from 'next'
 
-const inter = Inter({ subsets: ["latin"] })
+import { Toaster } from '@/components/ui/toaster'
+
+import './globals.css'
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: "Budget Bo - Gestion de Dépenses",
-  description: "SaaS Spending Tracker avec synchronisation bancaire et IA",
+  title: 'Budget Bo - Gestion de Dépenses',
+  description: 'SaaS Spending Tracker avec synchronisation bancaire et IA',
 }
 
-export default function RootLayout({
-  children,
-}: {
+interface RootLayoutProps {
   children: React.ReactNode
-}) {
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="fr" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+    <html lang='fr' suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
         <Toaster />
       </body>

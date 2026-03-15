@@ -1,0 +1,115 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "seeAll": "Voir tout",
+    "noData": "Aucune donnée disponible"
+  },
+  "nav": {
+    "dashboard": "Accueil",
+    "transactions": "Transactions",
+    "recurring": "Récurrences",
+    "credentials": "Comptes"
+  },
+  "dashboard": {
+    "title": "Vue d'ensemble",
+    "balance": "Solde total",
+    "expenses": "Dépenses",
+    "income": "Revenus",
+    "monthlyVariation": "{sign}{percent}% ce mois",
+    "recentTransactions": "Dernières transactions",
+    "upcomingPayments": "À venir",
+    "categoryBreakdown": "Répartition",
+    "syncBank": "Synchroniser",
+    "syncing": "Synchronisation..."
+  },
+  "transactions": {
+    "title": "Transactions",
+    "total": "{count, plural, one {# transaction} other {# transactions}}",
+    "filters": {
+      "all": "Tout",
+      "expenses": "Dépenses",
+      "income": "Revenus",
+      "thisMonth": "Ce mois",
+      "lastMonth": "Mois dernier",
+      "advanced": "Filtres"
+    },
+    "detail": {
+      "title": "Détail",
+      "merchant": "Marchand",
+      "category": "Catégorie",
+      "aiConfidence": "Confiance IA",
+      "rawLabel": "Libellé brut",
+      "editCategory": "Modifier la catégorie",
+      "editLabel": "Modifier le libellé"
+    },
+    "empty": "Aucune transaction trouvée"
+  },
+  "recurring": {
+    "title": "Abonnements",
+    "subtitle": "Dépenses récurrentes détectées automatiquement",
+    "totalMonthly": "Total mensuel estimé",
+    "activeCount": "Abonnements actifs",
+    "upcomingCount": "À venir (30j)",
+    "detect": "Détecter les récurrences",
+    "detecting": "Analyse en cours...",
+    "nextPayment": "Prochain prélèvement",
+    "inDays": "dans {days} jours",
+    "today": "Aujourd'hui",
+    "tomorrow": "Demain",
+    "frequency": {
+      "monthly": "Mensuel",
+      "weekly": "Hebdomadaire",
+      "bimonthly": "Bimensuel",
+      "annual": "Annuel",
+      "unknown": "Fréquence inconnue"
+    },
+    "confidence": "Confiance : {percent}%",
+    "occurrences": "{count, plural, one {# occurrence} other {# occurrences}}",
+    "deleteConfirm": "Supprimer cette récurrence ?",
+    "empty": "Aucune dépense récurrente détectée. Lancez l'analyse pour commencer."
+  },
+  "credentials": {
+    "title": "Comptes bancaires",
+    "addAccount": "Ajouter un compte",
+    "lastSync": "Dernière sync : {date}",
+    "neverSynced": "Jamais synchronisé",
+    "syncNow": "Synchroniser",
+    "syncing": "En cours...",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "deleteConfirm": "Supprimer ce compte ?",
+    "form": {
+      "bankName": "Banque",
+      "login": "Identifiant",
+      "password": "Mot de passe",
+      "passwordEditHint": "Laisser vide pour conserver l'actuel",
+      "securityNote": "Vos identifiants sont chiffrés et ne sont jamais partagés."
+    }
+  },
+  "login": {
+    "title": "Budget Bo",
+    "tagline": "Pilotez vos finances personnelles",
+    "continueWithGoogle": "Continuer avec Google",
+    "legalNote": "En continuant, vous acceptez nos conditions d'utilisation."
+  },
+  "categories": {
+    "food": "Alimentation",
+    "transport": "Transport",
+    "housing": "Logement",
+    "health": "Santé",
+    "entertainment": "Loisirs",
+    "shopping": "Shopping",
+    "utilities": "Services",
+    "income": "Revenus",
+    "transfer": "Virement",
+    "other": "Autre"
+  }
+}

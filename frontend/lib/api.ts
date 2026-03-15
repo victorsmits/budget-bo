@@ -20,8 +20,10 @@ function getCookie(name: string): string | null {
 export async function apiClient(
   endpoint: string,
   options: FetchOptions = {}
-): Promise<any> {
-  const { requireAuth = true, ...fetchOptions } = options
+): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { requireAuth: _requireAuth = true, ...fetchOptions } = options
+
+  void _requireAuth
 
   const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`
 

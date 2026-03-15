@@ -1,14 +1,10 @@
 "use client"
 
 import { ShieldCheck, Wallet2 } from "lucide-react"
-import { useRouter } from "next/navigation"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function LoginPage() {
-  const router = useRouter()
-
   const handleLogin = () => {
     // Redirection directe vers l'OAuth
     window.location.href = "/api/auth/login"

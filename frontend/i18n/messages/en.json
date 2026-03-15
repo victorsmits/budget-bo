@@ -1,0 +1,115 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "seeAll": "See all",
+    "noData": "No data available"
+  },
+  "nav": {
+    "dashboard": "Home",
+    "transactions": "Transactions",
+    "recurring": "Recurring",
+    "credentials": "Accounts"
+  },
+  "dashboard": {
+    "title": "Overview",
+    "balance": "Total balance",
+    "expenses": "Expenses",
+    "income": "Income",
+    "monthlyVariation": "{sign}{percent}% this month",
+    "recentTransactions": "Recent transactions",
+    "upcomingPayments": "Upcoming",
+    "categoryBreakdown": "Breakdown",
+    "syncBank": "Sync",
+    "syncing": "Syncing..."
+  },
+  "transactions": {
+    "title": "Transactions",
+    "total": "{count, plural, one {# transaction} other {# transactions}}",
+    "filters": {
+      "all": "All",
+      "expenses": "Expenses",
+      "income": "Income",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "advanced": "Filters"
+    },
+    "detail": {
+      "title": "Details",
+      "merchant": "Merchant",
+      "category": "Category",
+      "aiConfidence": "AI confidence",
+      "rawLabel": "Raw label",
+      "editCategory": "Edit category",
+      "editLabel": "Edit label"
+    },
+    "empty": "No transactions found"
+  },
+  "recurring": {
+    "title": "Subscriptions",
+    "subtitle": "Recurring expenses detected automatically",
+    "totalMonthly": "Estimated monthly total",
+    "activeCount": "Active subscriptions",
+    "upcomingCount": "Upcoming (30d)",
+    "detect": "Detect recurring",
+    "detecting": "Analyzing...",
+    "nextPayment": "Next payment",
+    "inDays": "in {days} days",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "frequency": {
+      "monthly": "Monthly",
+      "weekly": "Weekly",
+      "bimonthly": "Bimonthly",
+      "annual": "Annual",
+      "unknown": "Unknown frequency"
+    },
+    "confidence": "Confidence: {percent}%",
+    "occurrences": "{count, plural, one {# occurrence} other {# occurrences}}",
+    "deleteConfirm": "Delete this recurring expense?",
+    "empty": "No recurring expenses detected. Start analysis to begin."
+  },
+  "credentials": {
+    "title": "Bank accounts",
+    "addAccount": "Add account",
+    "lastSync": "Last sync: {date}",
+    "neverSynced": "Never synced",
+    "syncNow": "Sync",
+    "syncing": "Syncing...",
+    "active": "Active",
+    "inactive": "Inactive",
+    "deleteConfirm": "Delete this account?",
+    "form": {
+      "bankName": "Bank",
+      "login": "Login",
+      "password": "Password",
+      "passwordEditHint": "Leave empty to keep current password",
+      "securityNote": "Your credentials are encrypted and never shared."
+    }
+  },
+  "login": {
+    "title": "Budget Bo",
+    "tagline": "Take control of your personal finances",
+    "continueWithGoogle": "Continue with Google",
+    "legalNote": "By continuing, you agree to our terms of use."
+  },
+  "categories": {
+    "food": "Food",
+    "transport": "Transport",
+    "housing": "Housing",
+    "health": "Health",
+    "entertainment": "Entertainment",
+    "shopping": "Shopping",
+    "utilities": "Utilities",
+    "income": "Income",
+    "transfer": "Transfer",
+    "other": "Other"
+  }
+}
