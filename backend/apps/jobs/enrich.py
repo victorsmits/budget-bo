@@ -98,6 +98,21 @@ def _upsert_rule_from_transaction(transaction: Transaction) -> None:
         )
 
 
+
+
+def _persist_transaction(transaction: Transaction) -> None:
+    transaction.save(
+        update_fields=[
+            "cleaned_label",
+            "merchant_name",
+            "category",
+            "is_expense",
+            "ai_confidence",
+            "enriched_at",
+            "updated_at",
+        ]
+    )
+
 def _apply_gemini_result(transaction: Transaction, result: Any) -> None:
     transaction.cleaned_label = result.cleaned_label or ""
     merchant = normalize_consumer_merchant(
@@ -191,6 +206,7 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
             continue
 
         _apply_rule(tx, rule)
+        _persist_transaction(tx)
         stats["enriched_from_cache"] += 1
 
     max_batch_size = settings.GEMINI_MAX_BATCH_SIZE
@@ -227,23 +243,12 @@ def _enrich_transactions(transactions: list[Transaction], user_id: str) -> dict[
                 continue
 
             _apply_gemini_result(tx, result)
-            _upsert_rule_from_transaction(tx)
+            _persist_transaction(tx)
+            try:
+                _upsert_rule_from_transaction(tx)
+            except Exception:
+                logger.exception("Failed to upsert enrichment rule", extra={"transaction_id": str(tx.id), "user_id": str(user_id)})
             stats["enriched_from_gemini"] += 1
-
-    if transactions:
-        Transaction.objects.bulk_update(
-            transactions,
-            [
-                "cleaned_label",
-                "merchant_name",
-                "category",
-                "is_expense",
-                "ai_confidence",
-                "enriched_at",
-                "updated_at",
-            ],
-        )
-
     return stats
 
 
