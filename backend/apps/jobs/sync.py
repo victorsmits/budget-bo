@@ -1,8 +1,6 @@
 import hashlib
-import json
-import os
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -16,19 +14,67 @@ from services.security import EncryptionService
 
 RETRYABLE_EXCEPTIONS = (TimeoutError, ConnectionError)
 
+CA_REGION_URLS = {
+    "ca-alpesprovence": "www.ca-alpesprovence.fr",
+    "ca-alsace-vosges": "www.ca-alsace-vosges.fr",
+    "ca-anjou-maine": "www.ca-anjou-maine.fr",
+    "ca-aquitaine": "www.ca-aquitaine.fr",
+    "ca-atlantique-vendee": "www.ca-atlantique-vendee.fr",
+    "ca-briepicardie": "www.ca-briepicardie.fr",
+    "ca-cb": "www.ca-cb.fr",
+    "ca-centrefrance": "www.ca-centrefrance.fr",
+    "ca-centreloire": "www.ca-centreloire.fr",
+    "ca-centreouest": "www.ca-centreouest.fr",
+    "ca-centrest": "www.ca-centrest.fr",
+    "ca-charente-perigord": "www.ca-charente-perigord.fr",
+    "ca-cmds": "www.ca-cmds.fr",
+    "ca-corse": "www.ca-corse.fr",
+    "ca-cotesdarmor": "www.ca-cotesdarmor.fr",
+    "ca-des-savoie": "www.ca-des-savoie.fr",
+    "ca-finistere": "www.ca-finistere.fr",
+    "ca-franchecomte": "www.ca-franchecomte.fr",
+    "ca-guadeloupe": "www.ca-guadeloupe.fr",
+    "ca-illeetvilaine": "www.ca-illeetvilaine.fr",
+    "ca-languedoc": "www.ca-languedoc.fr",
+    "ca-loirehauteloire": "www.ca-loirehauteloire.fr",
+    "ca-lorraine": "www.ca-lorraine.fr",
+    "ca-martinique": "www.ca-martinique.fr",
+    "ca-morbihan": "www.ca-morbihan.fr",
+    "ca-nmp": "www.ca-nmp.fr",
+    "ca-nord-est": "www.ca-nord-est.fr",
+    "ca-norddefrance": "www.ca-norddefrance.fr",
+    "ca-normandie-seine": "www.ca-normandie-seine.fr",
+    "ca-normandie": "www.ca-normandie.fr",
+    "ca-paris": "www.ca-paris.fr",
+    "ca-pca": "www.ca-pca.fr",
+    "ca-pyrenees-gascogne": "www.ca-pyrenees-gascogne.fr",
+    "ca-reunion": "www.ca-reunion.fr",
+    "ca-sudmed": "www.ca-sudmed.fr",
+    "ca-sudrhonealpes": "www.ca-sudrhonealpes.fr",
+    "ca-toulouse": "www.ca-toulouse31.fr",
+    "ca-tourainepoitou": "www.ca-tourainepoitou.fr",
+    "ca-valdefrance": "www.ca-valdefrance.fr",
+    "ca-champagne-bourgogne": "www.ca-champagnebourgogne.fr",
+    "ca-bretagne-pays-de-loire": "www.ca-bretagnepaysdelaloire.fr",
+}
+
 
 def _build_transaction_key(tx_date: date, amount: Decimal, raw_label: str) -> str:
     source = f"{tx_date.isoformat()}|{amount}|{raw_label.strip().lower()}"
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
-def _normalize_transaction(item: dict[str, Any]) -> dict[str, Any]:
+def _normalize_transaction(item: dict[str, Any]) -> dict[str, Any] | None:
     tx_date = item.get("date")
     if isinstance(tx_date, str):
         tx_date = datetime.fromisoformat(tx_date).date()
+    if not isinstance(tx_date, date):
+        return None
 
     amount = Decimal(str(item.get("amount", "0")))
     raw_label = str(item.get("raw_label") or item.get("label") or "").strip()
+    if not raw_label:
+        return None
 
     return {
         "date": tx_date,
@@ -39,19 +85,10 @@ def _normalize_transaction(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _load_stub_payload() -> dict[str, Any] | None:
-    """
-    Optional local fallback to allow deterministic dev/testing without Woob runtime.
-    Set BANK_SYNC_STUB_JSON to a JSON payload:
-    {
-      "transactions": [{"date":"2026-03-10","amount":-42.5,"raw_label":"..."}],
-      "accounts": [{"account_id":"...","account_label":"...","balance":1200.0,"currency":"EUR"}]
-    }
-    """
-    raw = os.getenv("BANK_SYNC_STUB_JSON")
-    if not raw:
+def _map_bank_website(bank_website: str | None) -> str | None:
+    if not bank_website:
         return None
-    return json.loads(raw)
+    return CA_REGION_URLS.get(bank_website, bank_website)
 
 
 def fetch_credential_data(
@@ -60,17 +97,69 @@ def fetch_credential_data(
     decrypted_password: str,
     days_back: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """
-    Sync provider abstraction.
-    For now we support a deterministic env-based stub payload.
-    Hook Woob implementation here by returning (transactions, accounts).
-    """
-    payload = _load_stub_payload()
-    if payload is None:
-        return [], []
+    """Fetch real accounts + transactions from Woob custom module."""
+    if credential.bank_name not in {"cragr", "credit_agricole", "ca"}:
+        raise NotImplementedError(
+            f"Woob sync not implemented for bank_name={credential.bank_name}"
+        )
 
-    transactions = payload.get("transactions") or []
-    accounts = payload.get("accounts") or []
+    try:
+        from custom_woob_modules.cragr_custom.browser import CragrCustomBrowser
+    except Exception as exc:
+        raise RuntimeError(
+            "Unable to import Woob custom browser. Ensure woob + modules are installed."
+        ) from exc
+
+    website = _map_bank_website(credential.bank_website)
+    backend = CragrCustomBrowser(website, decrypted_login, decrypted_password)
+
+    since_date = (timezone.now() - timedelta(days=days_back)).date()
+    transactions: list[dict[str, Any]] = []
+    accounts: list[dict[str, Any]] = []
+
+    try:
+        for account in backend.iter_accounts():
+            account_id = str(getattr(account, "id", "") or "").strip()
+            if not account_id:
+                continue
+
+            accounts.append(
+                {
+                    "account_id": account_id,
+                    "account_label": str(getattr(account, "label", "") or account_id),
+                    "account_type": str(getattr(account, "type", "unknown") or "unknown"),
+                    "balance": str(getattr(account, "balance", "0") or "0"),
+                    "currency": str(getattr(account, "currency", "EUR") or "EUR"),
+                }
+            )
+
+            for history in backend.iter_history(account):
+                history_date = getattr(history, "date", None)
+                if hasattr(history_date, "date"):
+                    history_date = history_date.date()
+                if not history_date or history_date < since_date:
+                    continue
+
+                amount = Decimal(str(getattr(history, "amount", "0") or "0"))
+                label = (
+                    getattr(history, "label", None)
+                    or getattr(history, "raw", None)
+                    or "Unknown"
+                )
+                transactions.append(
+                    {
+                        "date": history_date,
+                        "amount": amount,
+                        "raw_label": str(label),
+                        "currency": str(getattr(account, "currency", "EUR") or "EUR"),
+                    }
+                )
+    finally:
+        try:
+            backend.deinit()
+        except Exception:
+            pass
+
     return transactions, accounts
 
 
@@ -106,7 +195,7 @@ def _insert_new_transactions(
     inserted_ids: list[str] = []
     for raw in transactions:
         normalized = _normalize_transaction(raw)
-        if not normalized["date"] or not normalized["raw_label"]:
+        if not normalized:
             continue
 
         exists = Transaction.objects.filter(
@@ -116,14 +205,15 @@ def _insert_new_transactions(
         if exists:
             continue
 
+        raw_amount = normalized["amount"]
         tx = Transaction.objects.create(
             user=credential.user,
             credential=credential,
             date=normalized["date"],
-            amount=normalized["amount"],
+            amount=abs(raw_amount),
             raw_label=normalized["raw_label"],
             currency=normalized["currency"],
-            is_expense=normalized["amount"] < 0,
+            is_expense=raw_amount < 0,
             transaction_key=normalized["transaction_key"],
         )
         inserted += 1
