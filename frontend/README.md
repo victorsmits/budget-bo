@@ -1,51 +1,45 @@
 # Budget Bo Frontend
 
-Frontend Next.js 14 pour le SaaS Spending Tracker.
+Interface web Next.js connectée au backend Django.
 
 ## Stack
 
-- **Next.js 14** (App Router)
-- **TypeScript**
-- **Tailwind CSS**
-- **shadcn/ui** (composants UI)
-- **Tremor.so** (dashboards/data viz)
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- TanStack Query
+
+## Pages principales
+
+- `/login` : entrée OAuth Google
+- `/` : dashboard (KPIs, catégories, transactions récentes)
+- `/transactions` : liste paginée + filtres + édition catégorie
+- `/transactions/[id]` : détail transaction
+- `/credentials` : gestion des comptes bancaires et sync
+- `/recurring` : dépenses récurrentes et détection manuelle
 
 ## Développement
 
 ```bash
-# Installation
 npm install
-
-# Dev server
 npm run dev
+```
 
-# Build
+Frontend local: `http://localhost:3000`
+
+## Configuration
+
+Variable utile:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+En dev, les appels peuvent aussi passer via le middleware/proxy Next.js (`/api/*`).
+
+## Vérification rapide
+
+```bash
 npm run build
 ```
-
-## Structure
-
-```
-app/
-├── page.tsx           # Dashboard
-├── transactions/      # Page transactions
-├── recurring/         # Page dépenses récurrentes
-├── login/             # Page login
-├── layout.tsx         # Root layout
-├── globals.css        # Styles globaux
-└── dashboard-layout.tsx # Layout avec sidebar
-
-components/
-├── ui/                # Composants shadcn/ui
-└── sidebar.tsx        # Navigation
-
-lib/
-└── utils.ts           # Utilities (cn function)
-```
-
-## Intégration Backend
-
-Le frontend communique avec le backend FastAPI via le reverse proxy Next.js.
-
-- API URL: `/api/*` → `http://backend:8000/*`
-- Auth: Sessions via cookies HttpOnly

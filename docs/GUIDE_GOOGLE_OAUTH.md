@@ -1,110 +1,61 @@
-# Guide : Configuration Google OAuth pour Budget Bo
+# Guide Google OAuth (Django + allauth)
 
-## Étape 1 : Créer un projet Google Cloud
+## Pré-requis
 
-1. Allez sur https://console.cloud.google.com
-2. Cliquez sur le sélecteur de projet (en haut) → "New Project"
-3. Nommez-le : `Budget Bo Auth`
-4. Cliquez "Create"
+- Un projet Google Cloud
+- OAuth Client ID de type **Web application**
+- Backend accessible sur `http://localhost:8000`
+- Frontend accessible sur `http://localhost:3000`
 
-## Étape 2 : Activer l'API Google OAuth
+## Configuration Google Cloud
 
-1. Dans le menu (☰), allez sur **"APIs & Services" > "OAuth consent screen"**
-2. Sélectionnez **"External"** (pour tester avec n'importe quel compte Gmail)
-3. Cliquez "Create"
+Dans **APIs & Services > Credentials**:
 
-## Étape 3 : Configurer l'écran de consentement
+- **Authorized JavaScript origins**
+  - `http://localhost:8000`
+- **Authorized redirect URIs**
+  - `http://localhost:8000/auth/social/google/login/callback/`
 
-Remplissez les champs obligatoires :
-- **App name** : `Budget Bo`
-- **User support email** : votre email
-- **Developer contact information** : votre email
-- Cliquez "Save and Continue" jusqu'à la fin
+> Le login démarre via `/auth/login`, puis allauth prend le relais.
 
-## Étape 4 : Créer les credentials OAuth 2.0
+## Variables d'environnement backend
 
-1. Allez sur **"APIs & Services" > "Credentials"**
-2. Cliquez **"Create Credentials" > "OAuth client ID"**
-3. Application type : **"Web application"**
-4. **Name** : `Budget Bo Web Client`
-5. **Authorized redirect URIs** (très important !) :
-   ```
-   http://localhost:8000/auth/callback
-   ```
-6. Cliquez "Create"
-
-## Étape 5 : Récupérer les clés
-
-Une fenêtre popup apparaît avec :
-- **Client ID** (ex: `123456789-abc123def456.apps.googleusercontent.com`)
-- **Client Secret** (ex: `GOCSPX-xxxxxxxxxxxxxxxxx`)
-
-⚠️ **Copiez-les immédiatement** - le secret ne sera plus visible après !
-
-## Étape 6 : Configurer Budget Bo
-
-Dans le fichier `.env` du projet :
-
-```bash
-# Éditer le fichier
-nano /home/victor-smits/workspace/budget-bo/.env
-```
-
-Remplacez les placeholders :
 ```env
-GOOGLE_CLIENT_ID=123456789-abc123def456.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxx
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+FRONTEND_URL=http://localhost:3000
 ```
 
-## Étape 7 : Redémarrer l'application
+## Flux de connexion
 
-```bash
-cd /home/victor-smits/workspace/budget-bo
-docker compose up -d
-```
+1. Le frontend redirige vers `/api/auth/login`.
+2. Le backend déclenche la redirection Google (`/auth/social/google/login/`).
+3. Après callback Google, allauth termine l'authentification.
+4. L'utilisateur revient côté frontend (`FRONTEND_URL`).
+5. Les endpoints `GET /auth/me` et `GET /users/me` valident la session.
 
-## Étape 8 : Tester
+## Endpoints utiles
 
-Ouvrez votre navigateur :
-```
-http://localhost:8000/auth/login
-```
+- `GET /auth/login`
+- `GET /auth/callback`
+- `POST /auth/logout`
+- `GET /auth/me`
+- `GET /users/me`
+- `POST /authtest-login` (dev uniquement)
 
-Vous devriez être redirigé vers Google pour l'authentification !
+## Dépannage
 
----
+### `redirect_uri_mismatch`
 
-## 🔧 Problèmes courants
+Vérifie l'URI exacte déclarée dans Google Cloud:
+- `http://localhost:8000/auth/social/google/login/callback/`
 
-### "redirect_uri_mismatch"
-L'URI dans le fichier `.env` doit être **exactement** celui configuré dans Google Cloud.
+### `Google OAuth is not configured` (503)
 
-### "access_denied"
-Votre compte email doit être ajouté comme "Test user" dans :
-Google Cloud Console → OAuth consent screen → Test users
+`GOOGLE_CLIENT_ID` et/ou `GOOGLE_CLIENT_SECRET` manquants dans l'environnement backend.
 
-### La connexion ne persiste pas
-Vérifiez que le cookie est bien créé avec `HttpOnly` et `SameSite=Lax`
+### Session non persistée côté frontend
 
----
-
-## 📋 Récapitulatif des URLs importantes
-
-| URL | Description |
-|-----|-------------|
-| http://localhost:8000/auth/login | Lance le login Google |
-| http://localhost:8000/auth/callback | Callback OAuth (configuré dans Google) |
-| http://localhost:8000/auth/me | Voir l'utilisateur connecté |
-| http://localhost:8000/auth/logout | Déconnexion |
-| http://localhost:8000/docs | Documentation API |
-
----
-
-## 🎨 Optionnel : Personnaliser l'écran de consentement
-
-Vous pouvez ajouter :
-- Logo de l'application (URL publique)
-- Liens vers votre politique de confidentialité
-- Page d'accueil
-
-Cela rend l'écran de consentement Google plus professionnel.
+- Vérifier `FRONTEND_URL` côté backend.
+- Vérifier l'usage de cookies (credentials inclus côté frontend).
+- Vérifier que l'URL API frontend pointe bien vers le backend (`NEXT_PUBLIC_API_URL` / proxy Next).
