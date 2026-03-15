@@ -98,17 +98,11 @@ services:
     networks:
       - budget-bo-network
 
-  rq-worker-1:
+  rq-worker:
     <<: *rq_worker_base
-    container_name: budget-bo-rq-worker-prod-1
-
-  rq-worker-2:
-    <<: *rq_worker_base
-    container_name: budget-bo-rq-worker-prod-2
-
-  rq-worker-3:
-    <<: *rq_worker_base
-    container_name: budget-bo-rq-worker-prod-3
+    deploy:
+      mode: replicated
+      replicas: ${RQ_WORKER_REPLICAS:-3}
 
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
