@@ -4,6 +4,7 @@ drf-spectacular>=0.27
 django-allauth[socialaccount]>=0.63
 django-rq>=2.10
 django-rq-dashboard>=0.3.3,<0.4
+rq-scheduler>=0.13
 django-cors-headers>=4.3
 psycopg2-binary>=2.9
 redis>=5.0

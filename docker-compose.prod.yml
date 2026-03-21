@@ -98,15 +98,13 @@ services:
     networks:
       - budget-bo-network
 
-  sync-scheduler:
+  rq-scheduler:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
-    container_name: budget-bo-sync-scheduler-prod
+    container_name: budget-bo-rq-scheduler-prod
     restart: unless-stopped
     command: >
-      sh -c "while true; do
-             python manage.py sync_credentials --days-back ${SYNC_DAYS_BACK:-1};
-             sleep ${SYNC_INTERVAL_SECONDS:-3600};
-           done"
+      sh -c "python manage.py ensure_rq_schedules &&
+             python manage.py rqscheduler"
     environment:
       <<: *rq_worker_env
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-3600}

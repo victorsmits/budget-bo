@@ -28,7 +28,7 @@
       timeout: 5s
       retries: 5
     networks: [budget-bo-network]
-
+ 
   backend:
     build: ./backend
     container_name: budget-bo-backend
@@ -57,14 +57,12 @@
         condition: service_healthy
     networks: [budget-bo-network]
 
-  sync-scheduler:
+  rq-scheduler:
     build: ./backend
-    container_name: budget-bo-sync-scheduler
+    container_name: budget-bo-rq-scheduler
     command: >
-      sh -c "while true; do
-             python manage.py sync_credentials --days-back ${SYNC_DAYS_BACK:-1};
-             sleep ${SYNC_INTERVAL_SECONDS:-3600};
-           done"
+      sh -c "python manage.py ensure_rq_schedules &&
+             python manage.py rqscheduler"
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.development
       - DATABASE_URL=postgresql://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
@@ -88,7 +86,7 @@
       backend:
         condition: service_started
     networks: [budget-bo-network]
-
+ 
   rq-worker:
     build: ./backend
     container_name: budget-bo-rq-worker
