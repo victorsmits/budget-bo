@@ -9,8 +9,10 @@ import { CategoryBadge } from "@/components/transactions/category-badge"
 import { PageHeader } from "@/components/page-header"
 import { KpiCard } from "@/components/kpi-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useDashboardData } from "@/hooks/api"
 import { useBankAccountsSummary } from "@/hooks/api/useAccounts"
+import { useEnrichAllTransactions } from "@/hooks/api/useTransactions"
 import { getTransactionDisplayLabel } from "@/lib/transaction-presentation"
 
 const money = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
@@ -18,6 +20,7 @@ const money = (n: number) => n.toLocaleString("fr-FR", { style: "currency", curr
 export default function DashboardPage() {
   const { summary, recentTransactions, upcomingRecurring, credentials, syncCredential, error } = useDashboardData()
   const accounts = useBankAccountsSummary()
+  const enrichAll = useEnrichAllTransactions()
 
   const handleSync = () => {
     const cred = credentials?.[0]
@@ -52,6 +55,16 @@ export default function DashboardPage() {
           actionLabel={syncCredential.isPending ? "Synchronisation..." : "Synchroniser ma banque"}
           actionLoading={syncCredential.isPending || !credentials?.length}
         />
+
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => enrichAll.mutate()}
+            disabled={enrichAll.isPending}
+          >
+            {enrichAll.isPending ? "Enrichissement..." : "Enrichir toutes mes transactions"}
+          </Button>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard title="Solde réel" value={money(accounts.data?.total_balance ?? summary?.net ?? 0)} icon={<Landmark className="size-4" />} />

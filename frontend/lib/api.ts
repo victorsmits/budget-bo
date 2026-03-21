@@ -82,6 +82,11 @@ export const api = {
     },
     getById: (id: string) => apiClient(`/transactions/${id}`),
     summary: () => apiClient("/transactions/summary"),
+    enrichBulk: (payload?: { max_transactions?: number; worker_count?: number; enrich_all?: boolean }) =>
+      apiClient("/transactions/enrich", {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      }),
     enrich: (id: string) => apiClient(`/transactions/${id}/enrich`, { method: "POST" }),
     correct: (id: string, payload: TransactionCorrectionPayload) =>
       apiClient(`/transactions/${id}/correction`, { method: "PATCH", body: JSON.stringify(payload) }),

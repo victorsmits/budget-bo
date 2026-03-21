@@ -33,6 +33,25 @@ export function useTransactions(filters?: TransactionFilters) {
   })
 }
 
+export function useEnrichAllTransactions() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.transactions.enrichBulk({ enrich_all: true, max_transactions: 5000 })
+      return response
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      toast.success(`Enrichissement lancé (${data?.transaction_count ?? 0} transactions)`) 
+    },
+    onError: (error) => {
+      console.error("Enrich all failed:", error)
+      toast.error("Échec du lancement de l'enrichissement global")
+    },
+  })
+}
+
 export function useTransactionSummary() {
   return useQuery({
     queryKey: ["transactions", "summary"],
