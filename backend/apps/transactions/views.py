@@ -1,11 +1,12 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db.models import Q, Sum, Count, Value
 from django.db.models import Avg, Min, Max, TextField
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django_rq import get_queue
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -124,7 +125,10 @@ def transaction_list(request):
 
 @api_view(["GET"])
 def transaction_summary(request):
-    qs = Transaction.objects.filter(user=request.user)
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    next_month_start = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    qs = Transaction.objects.filter(user=request.user, date__gte=month_start, date__lt=next_month_start)
     expenses = qs.filter(is_expense=True).aggregate(total=Sum("amount"))["total"] or 0
     income = qs.filter(is_expense=False).aggregate(total=Sum("amount"))["total"] or 0
     by_category = list(
