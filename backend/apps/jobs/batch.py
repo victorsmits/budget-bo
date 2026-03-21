@@ -7,7 +7,11 @@ from .enrich import enrich_single_transaction
 
 def sync_all_credentials(days_back=1):
     queue = get_queue("sync")
-    for credential_id in BankCredential.objects.filter(is_active=True).values_list("id", flat=True):
+    for credential_id in (
+        BankCredential.objects.filter(is_active=True)
+        .exclude(sync_status="syncing")
+        .values_list("id", flat=True)
+    ):
         queue.enqueue(sync_credential_transactions, str(credential_id), days_back)
 
 
