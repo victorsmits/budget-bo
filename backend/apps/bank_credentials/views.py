@@ -47,8 +47,8 @@ def credential_sync(request, credential_id):
             days_back = int(raw_days_back)
         except (TypeError, ValueError):
             return Response({"detail": "Invalid days_back; expected integer"}, status=400)
-    if days_back < 1 or days_back > 365:
-        return Response({"detail": "Invalid days_back; expected value between 1 and 365"}, status=400)
+    if days_back < 1 or days_back > 1825:
+        return Response({"detail": "Invalid days_back; expected value between 1 and 1825"}, status=400)
 
     queue = get_queue("sync")
     job = queue.enqueue(sync_credential_transactions, str(credential.id), days_back)

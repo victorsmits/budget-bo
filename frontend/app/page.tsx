@@ -23,11 +23,11 @@ export default function DashboardPage() {
     const cred = credentials?.[0]
     if (!cred) return
 
-    const raw = window.prompt("Récupérer combien de jours en arrière ? (1 à 365)", "90")
+    const raw = window.prompt("Récupérer combien de jours en arrière ? (1 à 1825)", "90")
     if (raw === null) return
     const daysBack = Number.parseInt(raw, 10)
-    if (!Number.isFinite(daysBack) || Number.isNaN(daysBack) || daysBack < 1 || daysBack > 365) {
-      window.alert("Nombre de jours invalide (attendu: entier entre 1 et 365).")
+    if (!Number.isFinite(daysBack) || Number.isNaN(daysBack) || daysBack < 1 || daysBack > 1825) {
+      window.alert("Nombre de jours invalide (attendu: entier entre 1 et 1825).")
       return
     }
 
