@@ -131,7 +131,11 @@ export const api = {
     update: (id: string, data: { bank_name?: string; bank_label?: string; bank_website?: string; login?: string; password?: string }) =>
       apiClient(`/credentials/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) => apiClient(`/credentials/${id}`, { method: "DELETE" }),
-    sync: (id: string) => apiClient(`/credentials/${id}/sync`, { method: "POST" }),
+    sync: (id: string, params?: { days_back?: number }) =>
+      apiClient(`/credentials/${id}/sync`, {
+        method: "POST",
+        body: JSON.stringify({ days_back: params?.days_back }),
+      }),
   },
 
   // Accounts

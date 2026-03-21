@@ -33,8 +33,25 @@ def credential_detail_delete(request, credential_id):
 @api_view(["POST"])
 def credential_sync(request, credential_id):
     credential = get_object_or_404(BankCredential, id=credential_id, user=request.user, is_active=True)
+    raw_days_back = None
+    try:
+        raw_days_back = request.data.get("days_back")
+    except Exception:
+        raw_days_back = None
+    if raw_days_back is None:
+        raw_days_back = request.query_params.get("days_back")
+
+    days_back = 90
+    if raw_days_back is not None and raw_days_back != "":
+        try:
+            days_back = int(raw_days_back)
+        except (TypeError, ValueError):
+            return Response({"detail": "Invalid days_back; expected integer"}, status=400)
+    if days_back < 1 or days_back > 365:
+        return Response({"detail": "Invalid days_back; expected value between 1 and 365"}, status=400)
+
     queue = get_queue("sync")
-    job = queue.enqueue(sync_credential_transactions, str(credential.id),90)
+    job = queue.enqueue(sync_credential_transactions, str(credential.id), days_back)
     return Response({"job_id": job.id, "status": "queued"})
 
 

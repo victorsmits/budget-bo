@@ -75,7 +75,8 @@ export function useSyncCredential() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: (credentialId: string) => api.credentials.sync(credentialId),
+    mutationFn: ({ credentialId, days_back }: { credentialId: string; days_back?: number }) =>
+      api.credentials.sync(credentialId, { days_back }),
     onSuccess: () => {
       // Invalider toutes les queries qui pourraient être affectées
       queryClient.invalidateQueries({ queryKey: ["transactions"] })

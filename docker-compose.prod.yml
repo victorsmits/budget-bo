@@ -26,7 +26,7 @@ x-rq-worker-base: &rq_worker_base
   networks:
     - budget-bo-network
 
- services:
+services:
   postgres:
     image: postgres:16-alpine
     container_name: budget-bo-postgres-prod

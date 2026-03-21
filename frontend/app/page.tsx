@@ -19,6 +19,21 @@ export default function DashboardPage() {
   const { summary, recentTransactions, upcomingRecurring, credentials, syncCredential, error } = useDashboardData()
   const accounts = useBankAccountsSummary()
 
+  const handleSync = () => {
+    const cred = credentials?.[0]
+    if (!cred) return
+
+    const raw = window.prompt("Récupérer combien de jours en arrière ? (1 à 365)", "90")
+    if (raw === null) return
+    const daysBack = Number.parseInt(raw, 10)
+    if (!Number.isFinite(daysBack) || Number.isNaN(daysBack) || daysBack < 1 || daysBack > 365) {
+      window.alert("Nombre de jours invalide (attendu: entier entre 1 et 365).")
+      return
+    }
+
+    syncCredential.mutate({ credentialId: cred.id, days_back: daysBack })
+  }
+
   if (error) {
     return (
       <DashboardLayout>
@@ -33,7 +48,7 @@ export default function DashboardPage() {
         <PageHeader
           title="Vue d'ensemble"
           subtitle="Synthèse de vos finances depuis l'API existante."
-          action={() => credentials?.[0] && syncCredential.mutate(credentials[0].id)}
+          action={handleSync}
           actionLabel={syncCredential.isPending ? "Synchronisation..." : "Synchroniser ma banque"}
           actionLoading={syncCredential.isPending || !credentials?.length}
         />
