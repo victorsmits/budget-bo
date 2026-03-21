@@ -72,6 +72,18 @@ export default function CredentialsPage() {
   const deleteCredential = useDeleteCredential()
   const syncCredential = useSyncCredential()
 
+  const handleSync = (credentialId: string) => {
+    const raw = window.prompt("Récupérer combien de jours en arrière ? (1 à 1825)", "90")
+    if (raw === null) return
+    const daysBack = Number.parseInt(raw, 10)
+    if (!Number.isFinite(daysBack) || Number.isNaN(daysBack) || daysBack < 1 || daysBack > 1825) {
+      window.alert("Nombre de jours invalide (attendu: entier entre 1 et 1825).")
+      return
+    }
+
+    syncCredential.mutate({ credentialId, days_back: daysBack })
+  }
+
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -253,7 +265,7 @@ export default function CredentialsPage() {
                   >
                     <Pencil className="mr-2 size-4" />Éditer
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => syncCredential.mutate(credential.id)}>
+                  <Button variant="outline" size="sm" onClick={() => handleSync(credential.id)}>
                     <RefreshCw className="mr-2 size-4" />Sync
                   </Button>
                   <Button variant="destructive" size="sm" onClick={() => deleteCredential.mutate(credential.id)}>
