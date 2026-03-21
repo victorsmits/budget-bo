@@ -7,6 +7,8 @@ from django.conf.urls.static import static
 import redis
 import os
 
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
 
 def live(request):
     return JsonResponse({"status": "live"})
@@ -42,6 +44,8 @@ urlpatterns = [
     path("accounts", include("apps.bank_credentials.accounts_api_urls")),
     path("auth/social/", include("allauth.urls")),
     path("users", include("apps.accounts.user_urls")),
+    path("api/schema", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("health", health),
     path("live", live),
     path("ready", ready),

@@ -34,7 +34,7 @@ def credential_detail_delete(request, credential_id):
 def credential_sync(request, credential_id):
     credential = get_object_or_404(BankCredential, id=credential_id, user=request.user, is_active=True)
     queue = get_queue("sync")
-    job = queue.enqueue(sync_credential_transactions, str(credential.id),365)
+    job = queue.enqueue(sync_credential_transactions, str(credential.id),90)
     return Response({"job_id": job.id, "status": "queued"})
 
 

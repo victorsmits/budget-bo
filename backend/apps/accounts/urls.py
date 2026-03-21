@@ -6,5 +6,5 @@ urlpatterns = [
     path("/callback", views.auth_callback),
     path("/logout", views.auth_logout),
     path("/me", views.auth_me),
-    path("test-login", views.auth_test_login),
+    path("/test-login", views.auth_test_login),
 ]

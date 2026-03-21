@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, CreditCard, Home, LogOut, Menu, Repeat2, Wallet2 } from "lucide-react"
+import { BarChart3, Building2, CreditCard, Home, LogOut, Menu, Repeat2, Wallet2 } from "lucide-react"
 
 import { logout, useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 
 const links = [
   { href: "/", label: "Accueil", icon: Home },
+  { href: "/analytics", label: "Analyse", icon: BarChart3 },
   { href: "/transactions", label: "Transactions", icon: CreditCard },
   { href: "/recurring", label: "Récurrentes", icon: Repeat2 },
   { href: "/credentials", label: "Comptes", icon: Building2 },

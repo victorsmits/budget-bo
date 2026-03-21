@@ -16,6 +16,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sites",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "django_rq",
     "allauth",
@@ -137,8 +138,15 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "apps.transactions.pagination.UniformPagination",
     "PAGE_SIZE": 50,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Budget Bo API",
+    "DESCRIPTION": "API pour Budget Bo",
+    "VERSION": "1.0.0",
 }
 
 RQ_QUEUES = {

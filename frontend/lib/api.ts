@@ -85,6 +85,33 @@ export const api = {
     enrich: (id: string) => apiClient(`/transactions/${id}/enrich`, { method: "POST" }),
     correct: (id: string, payload: TransactionCorrectionPayload) =>
       apiClient(`/transactions/${id}/correction`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+    analyticsQuery: (params?: {
+      date_from?: string
+      date_to?: string
+      is_expense?: boolean
+      category?: string
+      label?: string
+      label_match?: "exact" | "contains" | "icontains"
+      merchant?: string
+      merchant_match?: "exact" | "contains" | "icontains"
+      group_by?: "none" | "day" | "month" | "year" | "category" | "merchant" | "label"
+      limit?: number
+    }) => {
+      const searchParams = new URLSearchParams()
+      if (params?.date_from) searchParams.append("date_from", params.date_from)
+      if (params?.date_to) searchParams.append("date_to", params.date_to)
+      if (typeof params?.is_expense === "boolean") searchParams.append("is_expense", String(params.is_expense))
+      if (params?.category) searchParams.append("category", params.category)
+      if (params?.label) searchParams.append("label", params.label)
+      if (params?.label_match) searchParams.append("label_match", params.label_match)
+      if (params?.merchant) searchParams.append("merchant", params.merchant)
+      if (params?.merchant_match) searchParams.append("merchant_match", params.merchant_match)
+      if (params?.group_by) searchParams.append("group_by", params.group_by)
+      if (typeof params?.limit === "number") searchParams.append("limit", String(params.limit))
+      const query = searchParams.toString()
+      return apiClient(`/transactions/analytics/query${query ? `?${query}` : ""}`)
+    },
   },
 
   // Recurring
