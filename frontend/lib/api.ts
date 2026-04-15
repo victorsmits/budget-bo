@@ -149,4 +149,22 @@ export const api = {
     summary: () => apiClient("/accounts/summary"),
     getById: (id: string) => apiClient(`/accounts/${id}`),
   },
+
+  // MCP tokens
+  mcp: {
+    tokens: () => apiClient("/users/mcp/tokens"),
+    createToken: (label: string) =>
+      apiClient("/users/mcp/tokens", { method: "POST", body: JSON.stringify({ label }) }),
+    revokeToken: (id: string) =>
+      apiClient(`/users/mcp/tokens/${id}`, { method: "DELETE" }),
+    renameToken: (id: string, label: string) =>
+      apiClient(`/users/mcp/tokens/${id}`, { method: "PATCH", body: JSON.stringify({ label }) }),
+    approveConsent: (params: {
+      client_id: string
+      redirect_uri: string
+      state: string
+      code_challenge: string
+      code_challenge_method: string
+    }) => apiClient("/mcp/oauth/approve", { method: "POST", body: JSON.stringify(params) }),
+  },
 }

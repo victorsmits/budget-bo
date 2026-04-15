@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, CreditCard, LayoutDashboard, LogOut, Menu, Repeat2, Wallet } from "lucide-react"
+import { Building2, CreditCard, LayoutDashboard, LogOut, Menu, Repeat2, Settings, Wallet } from "lucide-react"
 
 import { logout, useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
@@ -17,6 +17,7 @@ const navItems = [
   { title: "Transactions", href: "/transactions", icon: CreditCard },
   { title: "Récurrentes", href: "/recurring", icon: Repeat2 },
   { title: "Comptes", href: "/credentials", icon: Building2 },
+  { title: "Paramètres", href: "/settings", icon: Settings },
 ]
 
 function Brand() {

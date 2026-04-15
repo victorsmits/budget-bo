@@ -38,6 +38,7 @@ urlpatterns = [
     path("admin/rq/", include("django_rq.urls")),
     path("admin/", admin.site.urls),
     path("auth", include("apps.accounts.urls")),
+    path("mcp/oauth", include("apps.accounts.oauth_urls")),
     path("credentials", include("apps.bank_credentials.urls")),
     path("transactions", include("apps.transactions.urls")),
     path("recurring", include("apps.recurring.urls")),
