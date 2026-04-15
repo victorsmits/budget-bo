@@ -138,3 +138,4 @@ docker compose exec backend python manage.py test
 - IA / enrichissement: `docs/AI_CLASSIFICATION.md`
 - Migrations: `docs/MIGRATIONS.md`
 - Plan produit: `docs/ROADMAP.md`
+- Serveur MCP (claude.ai): `docs/MCP_SERVER.md`

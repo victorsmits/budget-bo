@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User
+from .models import User, McpToken
 
 
 @admin.register(User)
@@ -13,3 +13,11 @@ class UserAdmin(admin.ModelAdmin):
         ("Dates", {"fields": ("created_at", "updated_at")}),
     )
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(McpToken)
+class McpTokenAdmin(admin.ModelAdmin):
+    list_display = ("user", "label", "is_active", "created_at", "last_used_at")
+    list_filter = ("is_active",)
+    search_fields = ("user__email", "label")
+    readonly_fields = ("token", "created_at", "last_used_at")

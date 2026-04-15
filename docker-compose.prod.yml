@@ -125,6 +125,29 @@ services:
       mode: replicated
       replicas: ${RQ_WORKER_REPLICAS:-3}
 
+  mcp-server:
+    image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-backend:${IMAGE_TAG:-latest}
+    container_name: budget-bo-mcp-server-prod
+    restart: unless-stopped
+    command: python mcp_server.py --host 0.0.0.0 --port 8808
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@budget-bo-postgres-prod:5432/${POSTGRES_DB:-budgetbo}
+      REDIS_URL: redis://budget-bo-redis-prod:6379/0
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8808"
+    ports:
+      - "8808:8808"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - budget-bo-network
+
   frontend:
     image: ${DOCKERHUB_NAMESPACE:?DOCKERHUB_NAMESPACE is required}/budget-bo-frontend:${IMAGE_TAG:-latest}
     container_name: budget-bo-frontend-prod

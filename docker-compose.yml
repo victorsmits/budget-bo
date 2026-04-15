@@ -111,6 +111,28 @@
         condition: service_healthy
     networks: [budget-bo-network]
 
+  mcp-server:
+    build: ./backend
+    container_name: budget-bo-mcp-server
+    command: python mcp_server.py --host 0.0.0.0 --port 8808
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-budgetbo}:${POSTGRES_PASSWORD:-budgetbo_secret}@postgres:5432/${POSTGRES_DB:-budgetbo}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change_me_in_production_please}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-generate_a_32_byte_key_}
+      - DJANGO_ALLOW_ASYNC_UNSAFE=true
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-streamable-http}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8808
+    ports: ["8808:8808"]
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [budget-bo-network]
+
  volumes:
   postgres_data:
   redis_data:
