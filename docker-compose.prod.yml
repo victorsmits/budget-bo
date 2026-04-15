@@ -140,6 +140,8 @@ services:
       MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "8808"
+      NEXT_PUBLIC_MCP_URL: ${NEXT_PUBLIC_MCP_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
     ports:
       - "8808:8808"
     depends_on:
