@@ -634,12 +634,52 @@ def resource_patterns() -> str:
 
 
 # ---------------------------------------------------------------------------
+# OAuth discovery endpoint (public — no Bearer token required)
+# Required by claude.ai to discover the authorization server before OAuth flow.
+# Spec: https://www.rfc-editor.org/rfc/rfc9728
+# ---------------------------------------------------------------------------
+
+async def _well_known_oauth_resource(scope, receive, send):
+    """
+    GET /.well-known/oauth-protected-resource
+    Tells claude.ai which authorization server to use for this MCP resource.
+    Must be public (no auth required).
+    """
+    from starlette.responses import JSONResponse
+
+    app_url = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
+    mcp_url = os.getenv("NEXT_PUBLIC_MCP_URL", "http://localhost:8808")
+
+    resp = JSONResponse(
+        {
+            "resource": f"{mcp_url}/mcp",
+            "authorization_servers": [app_url],
+        },
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+    await resp(scope, receive, send)
+
+
+# ---------------------------------------------------------------------------
 # ASGI auth middleware — resolve Bearer token → user via McpToken model
 # ---------------------------------------------------------------------------
 
 
 def _auth_middleware(app):
-    """ASGI middleware: extract Bearer token, resolve McpToken → User, set contextvar."""
+    """
+    ASGI middleware:
+    - Routes publiques OAuth (/.well-known/oauth-protected-resource) → pas d'auth requise
+    - Toutes les autres routes → Bearer token obligatoire
+    """
+
+    # Chemins accessibles sans token (découverte OAuth par claude.ai)
+    PUBLIC_PATHS = {
+        "/.well-known/oauth-authorization-server",
+        "/health",
+    }
 
     async def wrapped(scope, receive, send):
         if scope["type"] == "http":
@@ -647,10 +687,33 @@ def _auth_middleware(app):
             from starlette.responses import JSONResponse
 
             request = Request(scope, receive)
+            path = request.url.path
+
+            # --- Route de découverte OAuth : répondre directement, sans auth ---
+            if path == "/.well-known/oauth-protected-resource":
+                await _well_known_oauth_resource(scope, receive, send)
+                return
+
+            # --- Autres routes publiques : laisser passer sans auth ---
+            if path in PUBLIC_PATHS:
+                await app(scope, receive, send)
+                return
+
+            # --- Routes protégées : Bearer token obligatoire ---
             auth_header = request.headers.get("authorization", "")
 
             if not auth_header.startswith("Bearer "):
-                resp = JSONResponse({"error": "Missing Bearer token"}, status_code=401)
+                mcp_url = os.getenv("NEXT_PUBLIC_MCP_URL", "http://localhost:8808")
+                resp = JSONResponse(
+                    {"error": "Missing Bearer token"},
+                    status_code=401,
+                    headers={
+                        "WWW-Authenticate": (
+                            f'Bearer realm="Budget Bo", '
+                            f'resource_metadata="{mcp_url}/.well-known/oauth-protected-resource"'
+                        )
+                    },
+                )
                 await resp(scope, receive, send)
                 return
 
@@ -718,7 +781,7 @@ def main():
         else:
             asgi_app = server.streamable_http_app()
 
-        # Wrap with per-user Bearer token auth
+        # Wrap with per-user Bearer token auth + OAuth discovery
         asgi_app = _auth_middleware(asgi_app)
 
         print(
